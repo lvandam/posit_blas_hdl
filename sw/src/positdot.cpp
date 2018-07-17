@@ -31,7 +31,7 @@
 // Posit dot FPGA UserCore
 #include "scheme.hpp"
 #include "PositDotUserCore.h"
-#include "pairhmm.hpp"
+#include "positdot.hpp"
 
 #include "debug_values.hpp"
 #include "utils.hpp"
@@ -105,7 +105,7 @@ int main(int argc, char ** argv)
 
         vector2.push_back(0x40000000);
         vector2.push_back(0x00000000);
-        
+
         shared_ptr<arrow::Table> table_elements = create_table_elements(vector1, vector2);
 
         // Create arrays for results to be written to (per SA core)

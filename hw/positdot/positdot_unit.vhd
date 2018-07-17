@@ -939,9 +939,8 @@ begin
 
         -- Store the vector elements
         if cr1_v.str_element_elem_in.posit.valid = '1' then
-          v.element1_reads := r.element1_reads + 1;
+          v.element1_reads := r.element1_reads + int(cr1_v.str_element_elem_in.len.data);
           v.element1_wren  := '1';
-          v.element1_data  := cr1_v.str_element_elem_in.posit.data(255 downto 0);
 
           case int(cr1_v.str_element_elem_in.len.data) is
             when 0      => v.element1_data := (others => '0');
@@ -962,9 +961,8 @@ begin
         end if;
 
         if cr2_v.str_element_elem_in.posit.valid = '1' then
-          v.element2_reads := r.element2_reads + 1;
+          v.element2_reads := r.element2_reads + int(cr2_v.str_element_elem_in.len.data);
           v.element2_wren  := '1';
-          v.element2_data  := cr2_v.str_element_elem_in.posit.data(255 downto 0);
 
           case int(cr2_v.str_element_elem_in.len.data) is
             when 0      => v.element2_data := (others => '0');

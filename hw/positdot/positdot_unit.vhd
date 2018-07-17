@@ -368,9 +368,15 @@ architecture positdot_unit of positdot_unit is
 
   signal cw_r, cw_d : reg_result;
 
+  -- Accelerator signals
   signal qs, rs : cu_sched := cu_sched_empty;
   signal q, r   : cu_int;
   signal re     : cu_ext;
+
+  signal element1, element2 : value;
+  signal product            : value_product;
+  signal accum_result_raw   : value_accum;
+  signal accum_result       : std_logic_vector(POSIT_NBITS-1 downto 0);
 begin
   reset <= not reset_n;
 
@@ -863,6 +869,8 @@ begin
       -- Request all data
       when LOAD_REQUEST_DATA =>
         -- Reset all counters etc...
+        v.element1_reads := (others => '0');
+        v.element2_reads := (others => '0');
         v.filled := '0';
 
         -- ColumnReader 1
@@ -1120,7 +1128,7 @@ begin
 --                        | |
 --                        |_|
 ---------------------------------------------------------------------------------------------------
-  re.outfifo.din(31 downto 0) <= (others => '1');
+  re.outfifo.din(31 downto 0) <= accum_result;
   re.outfifo.c.wr_en          <= '0';
 
   outfifo : output_fifo
@@ -1139,5 +1147,102 @@ begin
       valid     => re.outfifo.c.valid,     -- out
       underflow => re.outfifo.c.underflow  -- out
       );
+
+  ---------------------------------------------------------------------------------------------------
+  --  _____                _   _       _    _           _   _
+  -- |  __ \              (_) | |     | |  | |         (_) | |
+  -- | |__) | ___    ___   _  | |_    | |  | |  _ __    _  | |_   ___
+  -- |  ___/ / _ \  / __| | | | __|   | |  | | | '_ \  | | | __| / __|
+  -- | |    | (_) | \__ \ | | | |_    | |__| | | | | | | | | |_  \__ \
+  -- |_|     \___/  |___/ |_|  \__|    \____/  |_| |_| |_|  \__| |___/
+  ---------------------------------------------------------------------------------------------------
+
+  -- POSIT EXTRACTION
+  gen_posit_extract_raw_es2 : if POSIT_ES = 2 generate
+    extract_el1_inst : posit_extract_raw port map (
+      in1      => re.element1_fifo.dout,
+      absolute => open,
+      result   => element1
+      );
+    extract_el2_inst : posit_extract_raw port map (
+      in1      => re.element2_fifo.dout,
+      absolute => open,
+      result   => element2
+      );
+  end generate;
+  gen_posit_extract_raw_es3 : if POSIT_ES = 3 generate
+    extract_el1_inst : posit_extract_raw_es3 port map (
+      in1      => re.element1_fifo.dout,
+      absolute => open,
+      result   => element1
+      );
+    extract_el2_inst : posit_extract_raw_es3 port map (
+      in1      => re.element2_fifo.dout,
+      absolute => open,
+      result   => element2
+      );
+  end generate;
+
+  -- POSIT MULTIPLICATION
+  gen_mul_es2 : if POSIT_ES = 2 generate
+    posit_mul_es2_inst : positmult_4_raw port map (
+      clk    => re.clk_kernel,
+      in1    => element1,
+      in2    => element2,
+      start  => '1',
+      result => product,
+      done   => open
+      );
+  end generate;
+  gen_mul_es3 : if POSIT_ES = 3 generate
+    posit_mul_es3_inst : positmult_4_raw_es3 port map (
+      clk    => re.clk_kernel,
+      in1    => element1,
+      in2    => element2,
+      start  => '1',
+      result => product,
+      done   => open
+      );
+  end generate;
+
+-- POSIT ACCUMULATION
+  gen_accum_es2 : if POSIT_ES = 2 generate
+    posit_accum_es2_inst : positaccum_16_raw port map (
+      clk    => re.clk_kernel,
+      rst    => reset,
+      in1    => prod2val(product),
+      start  => '1',
+      result => accum_result_raw,
+      done   => open
+      );
+  end generate;
+  gen_accum_es3 : if POSIT_ES = 3 generate
+    posit_accum_es3_inst : positaccum_16_raw_es3 port map (
+      clk    => re.clk_kernel,
+      rst    => reset,
+      in1    => prod2val(product),
+      start  => '1',
+      result => accum_result_raw,
+      done   => open
+      );
+  end generate;
+
+  -- POSIT NORMALIZATION
+  gen_normalize_es2 : if POSIT_ES = 2 generate
+    posit_normalize_es2_inst : posit_normalize port map (
+      in1    => accum2val(accum_result_raw),
+      result => accum_result,
+      inf    => open,
+      zero   => open
+      );
+  end generate;
+  gen_normalize_es3 : if POSIT_ES = 3 generate
+    posit_normalize_es3_inst : posit_normalize_es3 port map (
+      in1    => accum2val(accum_result_raw),
+      result => accum_result,
+      inf    => open,
+      zero   => open
+      );
+  end generate;
 
 end positdot_unit;

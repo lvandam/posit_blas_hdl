@@ -99,10 +99,13 @@ int main(int argc, char ** argv)
 
         // Make a table with element vectors
         std::vector<uint32_t> vector1, vector2;
-        vector1.push_back(5);
-        vector1.push_back(2);
-        vector2.push_back(2);
-        vector2.push_back(5);
+
+        vector1.push_back(0x40000000);
+        vector1.push_back(0x40000000);
+
+        vector2.push_back(0x40000000);
+        vector2.push_back(0x00000000);
+        
         shared_ptr<arrow::Table> table_elements = create_table_elements(vector1, vector2);
 
         // Create arrays for results to be written to (per SA core)

@@ -1,0 +1,7 @@
+CMakeFiles/
+CMakeCache.txt
+build/
+.idea/
+cmake-build-debug/
+hw/posit_rtl
+hw/posit_package.vhd

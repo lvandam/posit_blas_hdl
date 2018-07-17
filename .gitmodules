@@ -1,0 +1,6 @@
+[submodule "fletcher"]
+	path = fletcher
+	url = https://github.com/lvandam/fletcher
+[submodule "posit"]
+	path = posit
+	url = https://github.com/lvandam/posit_arith_hdl

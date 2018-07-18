@@ -98,13 +98,11 @@ int main(int argc, char ** argv)
         }
 
         // Make a table with element vectors
-        std::vector<uint32_t> vector1, vector2;
+        std::vector<posit<NBITS,ES> > vector1, vector2;
 
-        vector1.push_back(0x40000000);
-        vector1.push_back(0x40000000);
-
-        vector2.push_back(0x40000000);
-        vector2.push_back(0x00000000);
+        vector1.push_back(posit<NBITS,ES>(1)); vector2.push_back(posit<NBITS,ES>(1));
+        vector1.push_back(posit<NBITS,ES>(1)); vector2.push_back(posit<NBITS,ES>(0));
+        vector1.push_back(posit<NBITS,ES>(5)); vector2.push_back(posit<NBITS,ES>(2));
 
         shared_ptr<arrow::Table> table_elements = create_table_elements(vector1, vector2);
 
@@ -145,6 +143,7 @@ int main(int argc, char ** argv)
         for(int i = 0; i < roundToMultiple(CORES, 2); i++) {
                 addr_lohi val;
                 val.full = (uint64_t) result_hw[i];
+                printf("Values buffer @ %016lX\n", val.full);
                 platform->write_mmio(REG_RESULT_DATA_OFFSET + i, val.full);
         }
 
@@ -170,9 +169,9 @@ int main(int argc, char ** argv)
         do {
                 usleep(10);
         }
-        while ((result_hw[CORES - 1][num_rows - 1] == 0xDEADBEEF));
+        while ((result_hw[CORES - 1][0] == 0xDEADBEEF));
 
-        // Get the number of matches from the UserCore
+        // Get the results from the UserCore
         for(int i = 0; i < CORES; i++) {
                 cout << "==================================" << endl;
                 cout << "== CORE " << i << endl;
@@ -183,6 +182,10 @@ int main(int argc, char ** argv)
                 cout << "==================================" << endl;
                 cout << endl;
         }
+
+        posit<NBITS, ES> result_posit;
+        result_posit.set_raw_bits(result_hw[0][0]);
+        cout << "Result: " << pretty_print(result_posit) << endl;
 
         // Check for errors with SW calculation
         if (calculate_sw) {

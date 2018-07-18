@@ -833,7 +833,6 @@ begin
       bm15_resp_last  => open
       );
 
-
   mid_interconnect_write : BusWriteArbiter generic map (
     BUS_ADDR_WIDTH   => BUS_ADDR_WIDTH,
     BUS_LEN_WIDTH    => 8,
@@ -862,15 +861,15 @@ begin
       mst_wdat_strobe => axi_top.wstrb,
       mst_wdat_last   => axi_top.wlast,
 
-      bs00_wreq_valid  => axi_mid_array(1).awvalid,
-      bs00_wreq_ready  => axi_mid_array(1).awready,
-      bs00_wreq_addr   => axi_mid_array(1).awaddr,
-      bs00_wreq_len    => axi_mid_array(1).awlen,
-      bs00_wdat_valid  => axi_mid_array(1).wvalid,
-      bs00_wdat_ready  => axi_mid_array(1).wready,
-      bs00_wdat_data   => axi_mid_array(1).wdata,
-      bs00_wdat_strobe => axi_mid_array(1).wstrb,
-      bs00_wdat_last   => axi_mid_array(1).wlast,
+      bs00_wreq_valid  => axi_mid_array(2).awvalid,
+      bs00_wreq_ready  => axi_mid_array(2).awready,
+      bs00_wreq_addr   => axi_mid_array(2).awaddr,
+      bs00_wreq_len    => axi_mid_array(2).awlen,
+      bs00_wdat_valid  => axi_mid_array(2).wvalid,
+      bs00_wdat_ready  => axi_mid_array(2).wready,
+      bs00_wdat_data   => axi_mid_array(2).wdata,
+      bs00_wdat_strobe => axi_mid_array(2).wstrb,
+      bs00_wdat_last   => axi_mid_array(2).wlast,
 
       bs01_wreq_valid  => open,
       bs01_wreq_ready  => open,

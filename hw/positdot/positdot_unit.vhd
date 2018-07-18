@@ -106,6 +106,10 @@ entity positdot_unit is
 end positdot_unit;
 
 architecture positdot_unit of positdot_unit is
+  constant ADD_CYCLES   : natural := 4;
+  constant MUL_CYCLES   : natural := 4;
+  constant ACCUM_CYCLES : natural := 16;
+
   signal reset : std_logic;
 
   -- Register on all ports to ease timing
@@ -373,10 +377,15 @@ architecture positdot_unit of positdot_unit is
   signal q, r   : cu_int;
   signal re     : cu_ext;
 
-  signal element1, element2 : value;
-  signal product            : value_product;
-  signal accum_result_raw   : value_accum;
-  signal accum_result       : std_logic_vector(POSIT_NBITS-1 downto 0);
+  signal el1_posit_in, el2_posit_in       : std_logic_vector(POSIT_NBITS-1 downto 0);
+  signal element1, element2               : value;
+  signal el1_el2_valid                    : std_logic;
+  signal product                          : value_product;
+  signal accum_result_raw                 : value_accum;
+  signal accum_result                     : std_logic_vector(POSIT_NBITS-1 downto 0);
+  signal accum_inf, accum_zero            : std_logic;
+  signal posit_done_mul, posit_done_accum : std_logic;
+  signal reset_accum                      : std_logic;
 begin
   reset <= not reset_n;
 
@@ -673,30 +682,6 @@ begin
     end if;
   end process;
 
-  result_write_seq : process(clk, r.wed.batches_total, result_unlock_valid) is
-    variable result_count : integer range 0 to MAX_BATCHES := 0;
-  begin
-    if rising_edge(clk) then
-      cw_r <= cw_d;
-
-      if result_unlock_valid = '1' then
-        result_count := result_count + 1;
-        if(result_count = to_integer(r.wed.batches_total)) then  -- TODO how many results?
-          cw_r.cs.done <= '1';
-        end if;
-      end if;
-
-      -- Reset
-      if reset = '1' then
-        cw_r.state          <= IDLE;
-        cw_r.cs.reset_start <= '0';
-        cw_r.cs.busy        <= '0';
-        cw_r.cs.done        <= '0';
-        cw_r.result_index   <= 0;
-      end if;
-    end if;
-  end process;
-
   result_write_comb : process(cw_r,
                               re,
                               str_result_elem_in,
@@ -788,8 +773,37 @@ begin
     result_cmd_tag      <= o.cmd.tag;
 
     result_unlock_ready <= o.unl.ready;
-
   end process;
+
+  result_write_seq : process(clk, r.wed.batches_total, result_unlock_valid) is
+    variable result_count : integer range 0 to MAX_BATCHES := 0;
+  begin
+    if rising_edge(clk) then
+      cw_r <= cw_d;
+
+      if result_unlock_valid = '1' then
+        result_count := result_count + 1;
+        if(result_count = to_integer(r.wed.batches_total)) then  -- TODO how many results?
+          cw_r.cs.done <= '1';
+        end if;
+      end if;
+
+      -- Reset
+      if reset = '1' then
+        cw_r.state          <= IDLE;
+        cw_r.cs.reset_start <= '0';
+        cw_r.cs.busy        <= '0';
+        cw_r.cs.done        <= '0';
+        cw_r.result_index   <= 0;
+
+        cw_r.str_result_elem_out.data.valid  <= '0';
+        cw_r.str_result_elem_out.data.dvalid <= '0';
+        cw_r.str_result_elem_out.data.last   <= '0';
+        cw_r.str_result_elem_out.data.data   <= (others => '0');
+      end if;
+    end if;
+  end process;
+
 
   loader_comb : process(r,
                         rs,
@@ -862,8 +876,9 @@ begin
         cr2_v.reset_units := '0';
 
         if control_start = '0' then
-          v.wed.batches := to_unsigned(1, 32);  -- TODO Laurens: make this variable
-          v.state       := LOAD_REQUEST_DATA;
+          v.wed.batches_total := to_unsigned(1, 32);  -- TODO Laurens: make this variable
+          v.wed.batches       := to_unsigned(1, 32);  -- TODO Laurens: make this variable
+          v.state             := LOAD_REQUEST_DATA;
         end if;
 
       -- Request all data
@@ -871,7 +886,7 @@ begin
         -- Reset all counters etc...
         v.element1_reads := (others => '0');
         v.element2_reads := (others => '0');
-        v.filled := '0';
+        v.filled         := '0';
 
         -- ColumnReader 1
         cr1_v.cs.done        := '0';
@@ -920,6 +935,8 @@ begin
 
       -- Load the values for the read X, Load the values for the element Y, State to stream in the probabilities
       when LOAD_LOADX_LOADY =>
+        v.element_reads_valid := '0';
+
         cr1_v.cs.done        := '0';
         cr1_v.cs.busy        := '1';
         cr1_v.cs.reset_start := '0';
@@ -984,8 +1001,9 @@ begin
 
         -- If all vector posits are loaded in, go to the next state to load the next batch information
         if cr1_v.str_element_elem_in.posit.last = '1' and cr2_v.str_element_elem_in.posit.last = '1' then  -- TODO Laurens: correct?
-          v.wed.batches := r.wed.batches - 1;
-          v.state       := LOAD_LAUNCH;
+          v.wed.batches         := r.wed.batches - 1;
+          v.element_reads_valid := '1';
+          v.state               := LOAD_LAUNCH;
         end if;
 
       -- A new batch is ready to be started
@@ -1041,7 +1059,6 @@ begin
     cr2_d <= cr2_v;
   end process;
 
-
   ---------------------------------------------------------------------------------------------------
   --  ______   _                                     _       ______   _____   ______    ____
   -- |  ____| | |                                   | |     |  ____| |_   _| |  ____|  / __ \
@@ -1050,20 +1067,6 @@ begin
   -- | |____  | | |  __/ | | | | | | |  __/ | | | | | |_    | |       _| |_  | |      | |__| | \__ \
   -- |______| |_|  \___| |_| |_| |_|  \___| |_| |_|  \__|   |_|      |_____| |_|       \____/  |___/
   ---------------------------------------------------------------------------------------------------
-
-  -- Element shift register
-  process(re)
-  begin
-    if(rising_edge(re.clk_kernel)) then
-      re.element1_fifo.c.rd_en <= '0';
-      re.element2_fifo.c.rd_en <= '0';
-
-      if(re.element1_fifo.c.empty = '0' and re.element2_fifo.c.empty = '0') then  -- Make sure vector elements are synced up
-        re.element1_fifo.c.rd_en <= '1';
-        re.element2_fifo.c.rd_en <= '1';
-      end if;
-    end if;
-  end process;
 
   element1_fifo : element_fifo port map (
     rst       => reset,
@@ -1126,17 +1129,16 @@ begin
 --                        | |
 --                        |_|
 ---------------------------------------------------------------------------------------------------
-  re.outfifo.din(31 downto 0) <= accum_result;
-  re.outfifo.c.wr_en          <= '0';
+  re.outfifo.din(31 downto 0) <= rs.accum_write_result;
+  re.outfifo.c.wr_en          <= rs.accum_write;
 
   outfifo : output_fifo
     port map (
-      wr_clk => re.clk_kernel,          -- in
-      rd_clk => clk,                    -- in
-      din    => re.outfifo.din,         -- in
-      wr_en  => re.outfifo.c.wr_en,     -- in
-      rd_en  => re.outfifo.c.rd_en,     -- in
-
+      wr_clk    => re.clk_kernel,          -- in
+      rd_clk    => clk,                    -- in
+      din       => re.outfifo.din,         -- in
+      wr_en     => re.outfifo.c.wr_en,     -- in
+      rd_en     => re.outfifo.c.rd_en,     -- in
       dout      => re.outfifo.dout,        -- out
       full      => re.outfifo.c.full,      -- out
       wr_ack    => re.outfifo.c.wr_ack,    -- out
@@ -1147,6 +1149,111 @@ begin
       );
 
   ---------------------------------------------------------------------------------------------------
+  --     _____      _              _       _
+  --    / ____|    | |            | |     | |
+  --   | (___   ___| |__   ___  __| |_   _| | ___ _ __
+  --    \___ \ / __| '_ \ / _ \/ _` | | | | |/ _ \ '__|
+  --    ____) | (__| | | |  __/ (_| | |_| | |  __/ |
+  --   |_____/ \___|_| |_|\___|\__,_|\__,_|_|\___|_|
+  ---------------------------------------------------------------------------------------------------
+
+  scheduler_comb : process(r, re, rs, accum_result, posit_done_accum)
+    variable vs : cu_sched;
+  begin
+    vs := rs;
+
+    vs.accum_write        := '0';
+    vs.accum_write_result := (others => '0');
+    vs.accum_fifo_rd      := '0';
+
+    case rs.state is
+      when SCHED_IDLE =>
+        vs.valid          := '0';
+        -- Gather the lengths from other clock domain
+        vs.element1_reads := r.element1_reads(31 downto 0);
+        vs.element2_reads := r.element2_reads(31 downto 0);
+
+        vs.accum_pass_cnt := (others => '0');
+        vs.accum_cnt      := (others => '0');
+
+        if r.filled = '1' then
+          vs.state := SCHED_STARTUP;
+        end if;
+
+      when SCHED_STARTUP =>
+        vs.state     := SCHED_PROCESSING;  -- Go to processing state
+        vs.valid     := '1';            -- Enable data valid on the next cycle
+        vs.startflag := '1';
+
+      when SCHED_PROCESSING =>
+        -- Unset the startflag
+        vs.startflag := '0';
+
+        if(posit_done_accum = '1') then
+          vs.accum_cnt := rs.accum_cnt + 1;
+        else
+          vs.accum_cnt := rs.accum_cnt;
+        end if;
+
+        if(rs.accum_cnt = 14) then
+          if(re.accum_fifo_empty = '0') then
+            vs.accum_fifo_rd := '1';
+          end if;
+        end if;
+
+        if(rs.accum_cnt = 15) then
+          vs.accum_cnt := (others => '0');
+          if(posit_done_accum = '1') then
+            vs.accum_pass_cnt := rs.accum_pass_cnt + 1;
+          end if;
+        end if;
+
+        if(rs.accum_pass_cnt = align_aeq(rs.element1_reads, 3) and rs.startflag = '0') then
+          vs.accum_write        := '1';
+          vs.accum_write_result := accum_result;
+
+          vs.valid := '0';              -- Next inputs are not valid anymore
+          vs.state := SCHED_DONE;
+        end if;
+
+      when SCHED_DONE =>
+        vs.state := SCHED_IDLE;
+
+      when others =>
+        null;
+
+    end case;
+
+    qs <= vs;
+  end process;
+
+  scheduler_reg : process(re.clk_kernel)
+  begin
+    if rising_edge(re.clk_kernel) then
+      if reset = '1' then
+        rs.state <= SCHED_IDLE;
+        rs.valid <= '0';
+      else
+        rs <= qs;
+      end if;
+    end if;
+  end process;
+
+  -- Element FIFO control
+  process(re)
+  begin
+    if(rising_edge(re.clk_kernel)) then
+      re.element1_fifo.c.rd_en <= '0';
+      re.element2_fifo.c.rd_en <= '0';
+
+      if(re.element1_fifo.c.empty = '0' and re.element2_fifo.c.empty = '0') then  -- Make sure vector elements are synced up
+        re.element1_fifo.c.rd_en <= '1';
+        re.element2_fifo.c.rd_en <= '1';
+      end if;
+    end if;
+  end process;
+
+  ---------------------------------------------------------------------------------------------------
   --  _____                _   _       _    _           _   _
   -- |  __ \              (_) | |     | |  | |         (_) | |
   -- | |__) | ___    ___   _  | |_    | |  | |  _ __    _  | |_   ___
@@ -1155,27 +1262,81 @@ begin
   -- |_|     \___/  |___/ |_|  \__|    \____/  |_| |_| |_|  \__| |___/
   ---------------------------------------------------------------------------------------------------
 
+  -- FIFO to insert multiplication results in proper cycle
+  gen_accum_fifo_es2 : if POSIT_ES = 2 generate
+    accum_fifo_inst : accum_fifo_es2
+      port map (
+        wr_clk    => re.clk_kernel,
+        rd_clk    => re.clk_kernel,
+        din       => re.accum_fifo_es2.din,
+        wr_en     => re.accum_fifo_es2.c.wr_en,
+        rd_en     => re.accum_fifo_es2.c.rd_en,
+        dout      => re.accum_fifo_es2.dout,
+        full      => re.accum_fifo_es2.c.full,
+        wr_ack    => re.accum_fifo_es2.c.wr_ack,
+        overflow  => re.accum_fifo_es2.c.overflow,
+        empty     => re.accum_fifo_es2.c.empty,
+        valid     => re.accum_fifo_es2.c.valid,
+        underflow => re.accum_fifo_es2.c.underflow
+        );
+    re.accum_fifo_es2.c.wr_en <= posit_done_mul;
+    re.accum_fifo_es2.din     <= product;
+    re.accum_fifo_es2.c.rd_en <= rs.accum_fifo_rd;
+    re.accum_fifo_empty       <= re.accum_fifo_es2.c.empty;
+    re.accum_fifo_out_es2     <= re.accum_fifo_es2.dout when re.accum_fifo_es2.c.valid = '1' else value_product_empty;
+  end generate;
+  gen_accum_fifo_es3 : if POSIT_ES = 3 generate
+    accum_fifo_inst : accum_fifo_es3
+      port map (
+        wr_clk    => re.clk_kernel,
+        rd_clk    => re.clk_kernel,
+        din       => re.accum_fifo_es3.din,
+        wr_en     => re.accum_fifo_es3.c.wr_en,
+        rd_en     => re.accum_fifo_es3.c.rd_en,
+        dout      => re.accum_fifo_es3.dout,
+        full      => re.accum_fifo_es3.c.full,
+        wr_ack    => re.accum_fifo_es3.c.wr_ack,
+        overflow  => re.accum_fifo_es3.c.overflow,
+        empty     => re.accum_fifo_es3.c.empty,
+        valid     => re.accum_fifo_es3.c.valid,
+        underflow => re.accum_fifo_es3.c.underflow
+        );
+    re.accum_fifo_es3.c.wr_en <= posit_done_mul;
+    re.accum_fifo_es3.din     <= product;
+    re.accum_fifo_es3.c.rd_en <= rs.accum_fifo_rd;
+    re.accum_fifo_empty       <= re.accum_fifo_es3.c.empty;
+    re.accum_fifo_out_es3     <= re.accum_fifo_es3.dout when re.accum_fifo_es3.c.valid = '1' else value_product_empty;
+  end generate;
+
+
+  reset_accum <= reset;                 -- TODO Laurens
+
+  el1_posit_in <= re.element1_fifo.dout when re.element1_fifo.c.valid = '1' else x"00000000";
+  el2_posit_in <= re.element2_fifo.dout when re.element2_fifo.c.valid = '1' else x"00000000";
+
+  el1_el2_valid <= re.element1_fifo.c.valid and re.element2_fifo.c.valid;
+
   -- POSIT EXTRACTION
   gen_posit_extract_raw_es2 : if POSIT_ES = 2 generate
     extract_el1_inst : posit_extract_raw port map (
-      in1      => re.element1_fifo.dout,
+      in1      => el1_posit_in,
       absolute => open,
       result   => element1
       );
     extract_el2_inst : posit_extract_raw port map (
-      in1      => re.element2_fifo.dout,
+      in1      => el2_posit_in,
       absolute => open,
       result   => element2
       );
   end generate;
   gen_posit_extract_raw_es3 : if POSIT_ES = 3 generate
     extract_el1_inst : posit_extract_raw_es3 port map (
-      in1      => re.element1_fifo.dout,
+      in1      => el1_posit_in,
       absolute => open,
       result   => element1
       );
     extract_el2_inst : posit_extract_raw_es3 port map (
-      in1      => re.element2_fifo.dout,
+      in1      => el2_posit_in,
       absolute => open,
       result   => element2
       );
@@ -1187,9 +1348,9 @@ begin
       clk    => re.clk_kernel,
       in1    => element1,
       in2    => element2,
-      start  => '1',
+      start  => el1_el2_valid,
       result => product,
-      done   => open
+      done   => posit_done_mul
       );
   end generate;
   gen_mul_es3 : if POSIT_ES = 3 generate
@@ -1197,31 +1358,31 @@ begin
       clk    => re.clk_kernel,
       in1    => element1,
       in2    => element2,
-      start  => '1',
+      start  => el1_el2_valid,
       result => product,
-      done   => open
+      done   => posit_done_mul
       );
   end generate;
 
--- POSIT ACCUMULATION
+  -- POSIT ACCUMULATION
   gen_accum_es2 : if POSIT_ES = 2 generate
     posit_accum_es2_inst : positaccum_16_raw port map (
       clk    => re.clk_kernel,
-      rst    => reset,
-      in1    => prod2val(product),
-      start  => '1',
+      rst    => reset_accum,
+      in1    => prod2val(re.accum_fifo_out_es2),
+      start  => re.accum_fifo_es2.c.valid,
       result => accum_result_raw,
-      done   => open
+      done   => posit_done_accum
       );
   end generate;
   gen_accum_es3 : if POSIT_ES = 3 generate
     posit_accum_es3_inst : positaccum_16_raw_es3 port map (
       clk    => re.clk_kernel,
-      rst    => reset,
-      in1    => prod2val(product),
-      start  => '1',
+      rst    => reset_accum,
+      in1    => prod2val(re.accum_fifo_out_es3),
+      start  => re.accum_fifo_es3.c.valid,
       result => accum_result_raw,
-      done   => open
+      done   => posit_done_accum
       );
   end generate;
 
@@ -1230,16 +1391,16 @@ begin
     posit_normalize_es2_inst : posit_normalize port map (
       in1    => accum2val(accum_result_raw),
       result => accum_result,
-      inf    => open,
-      zero   => open
+      inf    => accum_inf,
+      zero   => accum_zero
       );
   end generate;
   gen_normalize_es3 : if POSIT_ES = 3 generate
     posit_normalize_es3_inst : posit_normalize_es3 port map (
       in1    => accum2val(accum_result_raw),
       result => accum_result,
-      inf    => open,
-      zero   => open
+      inf    => accum_inf,
+      zero   => accum_zero
       );
   end generate;
 

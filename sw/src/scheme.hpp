@@ -9,4 +9,4 @@
 
 using namespace std;
 
-shared_ptr<arrow::Table> create_table_elements(std::vector<uint32_t>& vector1, std::vector<uint32_t>& vector2);
+shared_ptr<arrow::Table> create_table_elements(std::vector<posit<NBITS,ES>>& vector1, std::vector<posit<NBITS,ES>>& vector2);

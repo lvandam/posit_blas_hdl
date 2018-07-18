@@ -5,6 +5,7 @@
 #include <numeric>
 #include <iostream>
 #include <iomanip>
+#include <posit/posit>
 
 // Apache Arrow
 #include <arrow/api.h>
@@ -12,11 +13,12 @@
 #include "utils.hpp"
 
 using namespace std;
+using namespace sw::unum;
 
 /**
  * Create an Arrow table containing one column of elements
  */
-shared_ptr<arrow::Table> create_table_elements(std::vector<uint32_t>& vector1, std::vector<uint32_t>& vector2)
+shared_ptr<arrow::Table> create_table_elements(std::vector<posit<NBITS,ES>>& vector1, std::vector<posit<NBITS,ES>>& vector2)
 {
     //
     // listprim(32)
@@ -25,9 +27,9 @@ shared_ptr<arrow::Table> create_table_elements(std::vector<uint32_t>& vector1, s
     std::shared_ptr<arrow::DataType> type_ = arrow::fixed_size_binary(32);
 
     arrow::BinaryBuilder el1_builder(type_, pool);
-    for(uint32_t& el : vector1) {
+    for(posit<NBITS,ES>& el : vector1) {
         t_32 value_tmp;
-        value_tmp.b = el;
+        value_tmp.b = el.get().to_ulong();
 
         uint8_t element_bytes[4];
         element_bytes[0] = value_tmp.x[0];
@@ -39,9 +41,9 @@ shared_ptr<arrow::Table> create_table_elements(std::vector<uint32_t>& vector1, s
     }
 
     arrow::BinaryBuilder el2_builder(type_, pool);
-    for(uint32_t& el : vector2) {
+    for(posit<NBITS,ES>& el : vector2) {
         t_32 value_tmp;
-        value_tmp.b = el;
+        value_tmp.b = el.get().to_ulong();
 
         uint8_t element_bytes[4];
         element_bytes[0] = value_tmp.x[0];

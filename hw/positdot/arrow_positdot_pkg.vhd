@@ -366,40 +366,6 @@ package arrow_positdot_pkg is
       );
   end component;
 
-  component accum_fifo_es2
-    port (
-      wr_clk    : in  std_logic;
-      rd_clk    : in  std_logic;
-      din       : in  std_logic_vector(67 downto 0);
-      wr_en     : in  std_logic;
-      rd_en     : in  std_logic;
-      dout      : out std_logic_vector(67 downto 0);
-      full      : out std_logic;
-      wr_ack    : out std_logic;
-      overflow  : out std_logic;
-      empty     : out std_logic;
-      valid     : out std_logic;
-      underflow : out std_logic
-      );
-  end component;
-
-  component accum_fifo_es3
-    port (
-      wr_clk    : in  std_logic;
-      rd_clk    : in  std_logic;
-      din       : in  std_logic_vector(66 downto 0);
-      wr_en     : in  std_logic;
-      rd_en     : in  std_logic;
-      dout      : out std_logic_vector(66 downto 0);
-      full      : out std_logic;
-      wr_ack    : out std_logic;
-      overflow  : out std_logic;
-      empty     : out std_logic;
-      valid     : out std_logic;
-      underflow : out std_logic
-      );
-  end component;
-
 end package;
 
 package body arrow_positdot_pkg is

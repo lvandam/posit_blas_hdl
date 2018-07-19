@@ -73,12 +73,14 @@ int main(int argc, char ** argv)
         int rc = 0;
         uint32_t num_rows = BATCHES_PER_CORE * 1;
 
+        int length = 10;
         bool calculate_sw = true;
         bool show_results = false;
 
         DEBUG_PRINT("Parsing input arguments...\n");
-        if (argc >= 2) istringstream(argv[1]) >> calculate_sw;
-        if (argc >= 3) istringstream(argv[2]) >> show_results;
+        if (argc >= 2) istringstream(argv[1]) >> length;
+        if (argc >= 3) istringstream(argv[2]) >> calculate_sw;
+        if (argc >= 4) istringstream(argv[3]) >> show_results;
 
         // batches = std::vector<t_batch>(workload->batches);
         // for (int q = 0; q < workload->batches; q++) {
@@ -97,15 +99,23 @@ int main(int argc, char ** argv)
                 // pairhmm_dec50.calculate(batches);
         }
 
+        DEBUG_PRINT("Filling posit vectors...\n");
         // Make a table with element vectors
-        std::vector<posit<NBITS,ES> > vector1, vector2;
+        std::vector<posit<NBITS, ES> > vector1, vector2;
 
-        vector1.push_back(posit<NBITS,ES>(1)); vector2.push_back(posit<NBITS,ES>(1));
-        vector1.push_back(posit<NBITS,ES>(1)); vector2.push_back(posit<NBITS,ES>(0));
-        vector1.push_back(posit<NBITS,ES>(5)); vector2.push_back(posit<NBITS,ES>(2));
+        // vector1.push_back(posit<NBITS,ES>(1)); vector2.push_back(posit<NBITS,ES>(1));
+        // vector1.push_back(posit<NBITS,ES>(1)); vector2.push_back(posit<NBITS,ES>(0));
+        // vector1.push_back(posit<NBITS,ES>(5)); vector2.push_back(posit<NBITS,ES>(2));
+        // vector1.push_back(posit<NBITS,ES>(2)); vector2.push_back(posit<NBITS,ES>(3));
 
+        for(int i = 0; i < length; i++) {
+            vector1.push_back(posit<NBITS, ES>(i)); vector2.push_back(posit<NBITS, ES>(i));
+        }
+
+        DEBUG_PRINT("Creating Arrow table...\n");
         shared_ptr<arrow::Table> table_elements = create_table_elements(vector1, vector2);
 
+        DEBUG_PRINT("Creating result buffers...\n");
         // Create arrays for results to be written to (per SA core)
         std::vector<uint32_t *> result_hw(roundToMultiple(CORES, 2));
         for(int i = 0; i < roundToMultiple(CORES, 2); i++) {
@@ -126,6 +136,7 @@ int main(int argc, char ** argv)
 #error "PLATFORM must be 0 or 2"
 #endif
 
+        DEBUG_PRINT("Preparing column buffers...\n");
         // Prepare the colummn buffers
         std::vector<std::shared_ptr<arrow::Column> > columns;
         columns.push_back(table_elements->column(0));
@@ -133,12 +144,14 @@ int main(int argc, char ** argv)
 
         platform->prepare_column_chunks(columns); // This requires a modification in Fletcher (to accept vectors)
 
+        DEBUG_PRINT("Creating UserCore instance...\n");
         // Create a UserCore
         PositDotUserCore uc(static_pointer_cast<fletcher::FPGAPlatform>(platform));
 
         // Reset UserCore
         uc.reset();
 
+        DEBUG_PRINT("Writing result buffer addresses...\n");
         // Write result buffer addresses
         for(int i = 0; i < roundToMultiple(CORES, 2); i++) {
                 addr_lohi val;
@@ -199,6 +212,13 @@ int main(int argc, char ** argv)
                         hw_debug_values.debugValue(res_hw, "result[%d][%d]", c * BATCHES_PER_CORE + (BATCHES_PER_CORE - i - 1), 0);
                     }
                 }
+
+                posit<NBITS, ES> res_sw(0);
+                for(int i = 0; i < vector1.size(); i++) {
+                    res_sw = res_sw + vector1[i] * vector2[i];
+                }
+
+                cout << "SW RESULT: " << hexstring(res_sw.collect()) << endl;
 
                 // writeBenchmark(pairhmm_dec50, pairhmm_float, pairhmm_posit, hw_debug_values,
                 //                std::to_string(initial_constant_power) + ".txt", false, true);

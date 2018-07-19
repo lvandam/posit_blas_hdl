@@ -25,9 +25,9 @@
 
 #define REG_CONTROL_OFFSET  1
 
-#define REG_RESULT_DATA_OFFSET 7
+#define REG_RESULT_DATA_OFFSET 9
 
-#define REG_BATCH_OFFSET 15
+#define REG_BATCH_OFFSET 17
 
 /**
  * \class PositDotUserCore

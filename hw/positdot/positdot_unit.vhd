@@ -876,8 +876,8 @@ begin
         cr2_v.reset_units := '0';
 
         if control_start = '0' then
-          v.wed.batches_total := to_unsigned(1, 32);  -- TODO Laurens: make this variable
-          v.wed.batches       := to_unsigned(1, 32);  -- TODO Laurens: make this variable
+          v.wed.batches_total := to_unsigned(1, 32);
+          v.wed.batches       := to_unsigned(1, 32);
           v.state             := LOAD_REQUEST_DATA;
         end if;
 
@@ -956,10 +956,10 @@ begin
 
         -- Store the vector elements
         if cr1_v.str_element_elem_in.posit.valid = '1' then
-          v.element1_reads := r.element1_reads + int(cr1_v.str_element_elem_in.len.data);
+          v.element1_reads := r.element1_reads + int(cr1_v.str_element_elem_in.posit.count);
           v.element1_wren  := '1';
 
-          case int(cr1_v.str_element_elem_in.len.data) is
+          case int(cr1_v.str_element_elem_in.posit.count) is
             when 0      => v.element1_data := (others => '0');
             when 1      => v.element1_data := (255 downto 32 => '0') & cr1_v.str_element_elem_in.posit.data(31 downto 0);
             when 2      => v.element1_data := (255 downto 64 => '0') & cr1_v.str_element_elem_in.posit.data(63 downto 0);
@@ -974,14 +974,14 @@ begin
         else
           v.element1_reads := r.element1_reads;
           v.element1_wren  := '0';
-          v.element1_data  := (others => '1');
+          v.element1_data  := (others => '0');
         end if;
 
         if cr2_v.str_element_elem_in.posit.valid = '1' then
-          v.element2_reads := r.element2_reads + int(cr2_v.str_element_elem_in.len.data);
+          v.element2_reads := r.element2_reads + int(cr2_v.str_element_elem_in.posit.count);
           v.element2_wren  := '1';
 
-          case int(cr2_v.str_element_elem_in.len.data) is
+          case int(cr2_v.str_element_elem_in.posit.count) is
             when 0      => v.element2_data := (others => '0');
             when 1      => v.element2_data := (255 downto 32 => '0') & cr2_v.str_element_elem_in.posit.data(31 downto 0);
             when 2      => v.element2_data := (255 downto 64 => '0') & cr2_v.str_element_elem_in.posit.data(63 downto 0);
@@ -991,12 +991,12 @@ begin
             when 6      => v.element2_data := (255 downto 192 => '0') & cr2_v.str_element_elem_in.posit.data(191 downto 0);
             when 7      => v.element2_data := (255 downto 224 => '0') & cr2_v.str_element_elem_in.posit.data(223 downto 0);
             when 8      => v.element2_data := cr2_v.str_element_elem_in.posit.data(255 downto 0);
-            when others => v.element1_data := (others => '0');
+            when others => v.element2_data := (others => '0');
           end case;
         else
           v.element2_reads := r.element2_reads;
           v.element2_wren  := '0';
-          v.element2_data  := (others => '1');
+          v.element2_data  := (others => '0');
         end if;
 
         -- If all vector posits are loaded in, go to the next state to load the next batch information
@@ -1164,7 +1164,12 @@ begin
 
     vs.accum_write        := '0';
     vs.accum_write_result := (others => '0');
-    vs.accum_fifo_rd      := '0';
+    vs.element_fifo_rd    := '0';
+
+    vs.accum_cnt := rs.accum_cnt + 1;
+    if(rs.accum_cnt = 15) then
+      vs.accum_cnt := (others => '0');
+    end if;
 
     case rs.state is
       when SCHED_IDLE =>
@@ -1174,50 +1179,48 @@ begin
         vs.element2_reads := r.element2_reads(31 downto 0);
 
         vs.accum_pass_cnt := (others => '0');
-        vs.accum_cnt      := (others => '0');
 
-        if r.filled = '1' then
-          vs.state := SCHED_STARTUP;
+        if r.filled = '1' and rs.accum_cnt = 13 then
+          vs.element_fifo_rd := '1';
+          vs.state           := SCHED_STARTUP;
         end if;
 
       when SCHED_STARTUP =>
-        vs.state     := SCHED_PROCESSING;  -- Go to processing state
-        vs.valid     := '1';            -- Enable data valid on the next cycle
-        vs.startflag := '1';
+        vs.valid := '0';
+        if rs.accum_cnt = 15 then
+          vs.valid     := '1';          -- Enable data valid on the next cycle
+          vs.startflag := '1';
+          vs.state     := SCHED_PROCESSING;  -- Go to processing state
+        end if;
 
       when SCHED_PROCESSING =>
         -- Unset the startflag
         vs.startflag := '0';
 
-        if(posit_done_accum = '1') then
-          vs.accum_cnt := rs.accum_cnt + 1;
-        else
-          vs.accum_cnt := rs.accum_cnt;
-        end if;
-
-        if(rs.accum_cnt = 14) then
-          if(re.accum_fifo_empty = '0') then
-            vs.accum_fifo_rd := '1';
+        if(rs.accum_cnt = 13) then
+          if(re.element1_fifo.c.empty = '0' and re.element2_fifo.c.empty = '0') then
+            vs.element_fifo_rd := '1';
           end if;
         end if;
 
-        if(rs.accum_cnt = 15) then
-          vs.accum_cnt := (others => '0');
+        if(rs.accum_cnt = 4) then
           if(posit_done_accum = '1') then
             vs.accum_pass_cnt := rs.accum_pass_cnt + 1;
+            dumpStdOut("PASS " & integer'image(int(vs.accum_pass_cnt)));
+
+            if(rs.accum_pass_cnt = align_aeq(rs.element1_reads, 3) - 1 and rs.startflag = '0') then
+              vs.accum_write        := '1';
+              vs.accum_write_result := accum_result;
+
+              vs.valid := '0';          -- Next inputs are not valid anymore
+              vs.state := SCHED_DONE;
+            end if;
           end if;
-        end if;
-
-        if(rs.accum_pass_cnt = align_aeq(rs.element1_reads, 3) and rs.startflag = '0') then
-          vs.accum_write        := '1';
-          vs.accum_write_result := accum_result;
-
-          vs.valid := '0';              -- Next inputs are not valid anymore
-          vs.state := SCHED_DONE;
         end if;
 
       when SCHED_DONE =>
-        vs.state := SCHED_IDLE;
+        vs.accum_cnt := (others => '0');
+        vs.state     := SCHED_IDLE;
 
       when others =>
         null;
@@ -1240,18 +1243,21 @@ begin
   end process;
 
   -- Element FIFO control
-  process(re)
-  begin
-    if(rising_edge(re.clk_kernel)) then
-      re.element1_fifo.c.rd_en <= '0';
-      re.element2_fifo.c.rd_en <= '0';
+  -- process(re)
+  -- begin
+  --   if(rising_edge(re.clk_kernel)) then
+  --     re.element1_fifo.c.rd_en <= '0';
+  --     re.element2_fifo.c.rd_en <= '0';
+  --
+  --     if(re.element1_fifo.c.empty = '0' and re.element2_fifo.c.empty = '0' and rs.valid = '1') then  -- Make sure vector elements are synced up
+  --       re.element1_fifo.c.rd_en <= '1';
+  --       re.element2_fifo.c.rd_en <= '1';
+  --     end if;
+  --   end if;
+  -- end process;
 
-      if(re.element1_fifo.c.empty = '0' and re.element2_fifo.c.empty = '0') then  -- Make sure vector elements are synced up
-        re.element1_fifo.c.rd_en <= '1';
-        re.element2_fifo.c.rd_en <= '1';
-      end if;
-    end if;
-  end process;
+  re.element1_fifo.c.rd_en <= rs.element_fifo_rd;
+  re.element2_fifo.c.rd_en <= rs.element_fifo_rd;
 
   ---------------------------------------------------------------------------------------------------
   --  _____                _   _       _    _           _   _
@@ -1261,53 +1267,6 @@ begin
   -- | |    | (_) | \__ \ | | | |_    | |__| | | | | | | | | |_  \__ \
   -- |_|     \___/  |___/ |_|  \__|    \____/  |_| |_| |_|  \__| |___/
   ---------------------------------------------------------------------------------------------------
-
-  -- FIFO to insert multiplication results in proper cycle
-  gen_accum_fifo_es2 : if POSIT_ES = 2 generate
-    accum_fifo_inst : accum_fifo_es2
-      port map (
-        wr_clk    => re.clk_kernel,
-        rd_clk    => re.clk_kernel,
-        din       => re.accum_fifo_es2.din,
-        wr_en     => re.accum_fifo_es2.c.wr_en,
-        rd_en     => re.accum_fifo_es2.c.rd_en,
-        dout      => re.accum_fifo_es2.dout,
-        full      => re.accum_fifo_es2.c.full,
-        wr_ack    => re.accum_fifo_es2.c.wr_ack,
-        overflow  => re.accum_fifo_es2.c.overflow,
-        empty     => re.accum_fifo_es2.c.empty,
-        valid     => re.accum_fifo_es2.c.valid,
-        underflow => re.accum_fifo_es2.c.underflow
-        );
-    re.accum_fifo_es2.c.wr_en <= posit_done_mul;
-    re.accum_fifo_es2.din     <= product;
-    re.accum_fifo_es2.c.rd_en <= rs.accum_fifo_rd;
-    re.accum_fifo_empty       <= re.accum_fifo_es2.c.empty;
-    re.accum_fifo_out_es2     <= re.accum_fifo_es2.dout when re.accum_fifo_es2.c.valid = '1' else value_product_empty;
-  end generate;
-  gen_accum_fifo_es3 : if POSIT_ES = 3 generate
-    accum_fifo_inst : accum_fifo_es3
-      port map (
-        wr_clk    => re.clk_kernel,
-        rd_clk    => re.clk_kernel,
-        din       => re.accum_fifo_es3.din,
-        wr_en     => re.accum_fifo_es3.c.wr_en,
-        rd_en     => re.accum_fifo_es3.c.rd_en,
-        dout      => re.accum_fifo_es3.dout,
-        full      => re.accum_fifo_es3.c.full,
-        wr_ack    => re.accum_fifo_es3.c.wr_ack,
-        overflow  => re.accum_fifo_es3.c.overflow,
-        empty     => re.accum_fifo_es3.c.empty,
-        valid     => re.accum_fifo_es3.c.valid,
-        underflow => re.accum_fifo_es3.c.underflow
-        );
-    re.accum_fifo_es3.c.wr_en <= posit_done_mul;
-    re.accum_fifo_es3.din     <= product;
-    re.accum_fifo_es3.c.rd_en <= rs.accum_fifo_rd;
-    re.accum_fifo_empty       <= re.accum_fifo_es3.c.empty;
-    re.accum_fifo_out_es3     <= re.accum_fifo_es3.dout when re.accum_fifo_es3.c.valid = '1' else value_product_empty;
-  end generate;
-
 
   reset_accum <= reset;                 -- TODO Laurens
 
@@ -1369,8 +1328,8 @@ begin
     posit_accum_es2_inst : positaccum_16_raw port map (
       clk    => re.clk_kernel,
       rst    => reset_accum,
-      in1    => prod2val(re.accum_fifo_out_es2),
-      start  => re.accum_fifo_es2.c.valid,
+      in1    => prod2val(product),
+      start  => posit_done_mul,
       result => accum_result_raw,
       done   => posit_done_accum
       );
@@ -1379,8 +1338,8 @@ begin
     posit_accum_es3_inst : positaccum_16_raw_es3 port map (
       clk    => re.clk_kernel,
       rst    => reset_accum,
-      in1    => prod2val(re.accum_fifo_out_es3),
-      start  => re.accum_fifo_es3.c.valid,
+      in1    => prod2val(product),
+      start  => posit_done_mul,
       result => accum_result_raw,
       done   => posit_done_accum
       );

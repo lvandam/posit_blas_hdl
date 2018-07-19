@@ -140,16 +140,18 @@ architecture arrow_positdot of arrow_positdot is
   --   1 return (uint64)          =  2
   ----------------------------------- Buffer addresses
   --   1 element1 offsets address    =  2
+  --   1 element1 vbmp address       =  2
   --   1 element1 data address       =  2
   --   1 element2 offsets address    =  2
+  --   1 element2 vbmp address        =  2
   --   1 element2 data address       =  2
   ----------------------------------- Buffer addresses
   --   8 result data address       =  16
   ----------------------------------- Custom registers (arguments)
   --   8 batch offsets                   =  8
   -----------------------------------
-  -- Total:                          38 regs
-  constant NUM_FLETCHER_REGS : natural := 38;
+  -- Total:                          42 regs
+  constant NUM_FLETCHER_REGS : natural := 42;
 
   -- The LSB index in the slave address
   constant SLV_ADDR_LSB : natural := log2floor(SLV_BUS_DATA_WIDTH / 4) - 1;
@@ -169,29 +171,33 @@ architecture arrow_positdot of arrow_positdot is
   constant REG_RETURN_HI : natural := 4;
   constant REG_RETURN_LO : natural := 5;
 
-  -- HAPL Index/Offset buffer address
+  -- Posit Element Vector 1 Index/Offset buffer address
   constant REG_ELEMENT1_OFF_ADDR_HI : natural := 6;
   constant REG_ELEMENT1_OFF_ADDR_LO : natural := 7;
 
-  -- Posit Data buffer address
-  constant REG_ELEMENT1_POSIT_ADDR_HI : natural := 8;
-  constant REG_ELEMENT1_POSIT_ADDR_LO : natural := 9;
+  -- Posit Element Vector 1 valid bitmap
+  constant REG_ELEMENT1_POSIT_VBMP_HI : natural := 8;
+  constant REG_ELEMENT1_POSIT_VBMP_LO : natural := 9;
 
-  -- HAPL Index/Offset buffer address
-  constant REG_ELEMENT2_OFF_ADDR_HI : natural := 10;
-  constant REG_ELEMENT2_OFF_ADDR_LO : natural := 11;
+  -- Posit Element Vector 1 Data buffer address
+  constant REG_ELEMENT1_POSIT_ADDR_HI : natural := 10;
+  constant REG_ELEMENT1_POSIT_ADDR_LO : natural := 11;
 
-  -- Posit Data buffer address
-  constant REG_ELEMENT2_POSIT_ADDR_HI : natural := 12;
-  constant REG_ELEMENT2_POSIT_ADDR_LO : natural := 13;
+  -- Posit Element Vector 2 Index/Offset buffer address
+  constant REG_ELEMENT2_OFF_ADDR_HI : natural := 12;
+  constant REG_ELEMENT2_OFF_ADDR_LO : natural := 13;
+
+  -- Posit Element Vector 2 valid bitmap
+  constant REG_ELEMENT2_POSIT_VBMP_HI : natural := 14;
+  constant REG_ELEMENT2_POSIT_VBMP_LO : natural := 15;
+
+  -- Posit Element Vector 2 Data buffer address
+  constant REG_ELEMENT2_POSIT_ADDR_HI : natural := 16;
+  constant REG_ELEMENT2_POSIT_ADDR_LO : natural := 17;
 
   -- Result data buffer address
-  constant REG_RESULT_DATA_ADDR_HI : natural := 14;
-  constant REG_RESULT_DATA_ADDR_LO : natural := 15;
-
-  -- 16, 17
-
-  -- 18, 19
+  constant REG_RESULT_DATA_ADDR_HI : natural := 18;
+  constant REG_RESULT_DATA_ADDR_LO : natural := 19;
 
   -- 20, 21
 
@@ -203,8 +209,12 @@ architecture arrow_positdot of arrow_positdot is
 
   -- 28, 29
 
+  -- 30, 31
+
+  -- 32, 33
+
   -- Batch offsets
-  constant REG_BATCH_OFFSET : natural := 30;
+  constant REG_BATCH_OFFSET : natural := 34;
 
   -- The offsets of the bits to signal busy and done for each of the units
   constant STATUS_BUSY_OFFSET : natural := 0;

@@ -800,6 +800,8 @@ begin
         cw_r.str_result_elem_out.data.dvalid <= '0';
         cw_r.str_result_elem_out.data.last   <= '0';
         cw_r.str_result_elem_out.data.data   <= (others => '0');
+
+        result_count := 0;
       end if;
     end if;
   end process;
@@ -841,6 +843,9 @@ begin
 
     --------------------------------------------------------------------------------------------------- default assignments
     v := r;
+
+    v.element1_rst := '0';
+    v.element2_rst := '0';
 
     v.element1_wren := '0';
     v.element2_wren := '0';
@@ -971,6 +976,10 @@ begin
             when 8      => v.element1_data := cr1_v.str_element_elem_in.posit.data(255 downto 0);
             when others => v.element1_data := (others => '0');
           end case;
+
+          if cr1_v.str_element_elem_in.posit.last = '1' then
+            v.element1_last := '1';
+          end if;
         else
           v.element1_reads := r.element1_reads;
           v.element1_wren  := '0';
@@ -993,6 +1002,10 @@ begin
             when 8      => v.element2_data := cr2_v.str_element_elem_in.posit.data(255 downto 0);
             when others => v.element2_data := (others => '0');
           end case;
+
+          if cr2_v.str_element_elem_in.posit.last = '1' then
+            v.element2_last := '1';
+          end if;
         else
           v.element2_reads := r.element2_reads;
           v.element2_wren  := '0';
@@ -1000,9 +1013,11 @@ begin
         end if;
 
         -- If all vector posits are loaded in, go to the next state to load the next batch information
-        if cr1_v.str_element_elem_in.posit.last = '1' and cr2_v.str_element_elem_in.posit.last = '1' then  -- TODO Laurens: correct?
+        if(r.element1_last = '1' and r.element2_last = '1') then
           v.wed.batches         := r.wed.batches - 1;
           v.element_reads_valid := '1';
+          v.element1_last       := '0';
+          v.element2_last       := '0';
           v.state               := LOAD_LAUNCH;
         end if;
 
@@ -1069,7 +1084,7 @@ begin
   ---------------------------------------------------------------------------------------------------
 
   element1_fifo : element_fifo port map (
-    rst       => reset,
+    rst       => r.element1_rst,
     wr_clk    => clk,
     rd_clk    => re.clk_kernel,
     din       => r.element1_data(255 downto 0),
@@ -1086,7 +1101,7 @@ begin
   re.element1_fifo.c.wr_en <= r.element1_wren;
 
   element2_fifo : element_fifo port map (
-    rst       => reset,
+    rst       => r.element2_rst,
     wr_clk    => clk,
     rd_clk    => re.clk_kernel,
     din       => r.element2_data(255 downto 0),

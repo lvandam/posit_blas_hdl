@@ -34,8 +34,14 @@ package cu_snap_package is
     element1_data : std_logic_vector(255 downto 0);  -- 8 elements per burst
     element2_data : std_logic_vector(255 downto 0);
 
+    element1_last : std_logic;
+    element2_last : std_logic;
+
     element1_wren : std_logic;
     element2_wren : std_logic;
+
+    element1_rst : std_logic;
+    element2_rst : std_logic;
 
     filled : std_logic;
   end record;
@@ -53,26 +59,26 @@ package cu_snap_package is
     valid     : std_logic;              -- Valid bit
     startflag : std_logic;
 
-    element1_reads         : unsigned(31 downto 0);
-    element2_reads         : unsigned(31 downto 0);
-    accum_cnt              : unsigned(3 downto 0);
-    accum_pass_cnt         : unsigned(31 downto 0);
-    accum_write            : std_logic;
-    accum_write_result     : std_logic_vector(31 downto 0);
-    element_fifo_rd          : std_logic;
+    element1_reads     : unsigned(31 downto 0);
+    element2_reads     : unsigned(31 downto 0);
+    accum_cnt          : unsigned(3 downto 0);
+    accum_pass_cnt     : unsigned(31 downto 0);
+    accum_write        : std_logic;
+    accum_write_result : std_logic_vector(31 downto 0);
+    element_fifo_rd    : std_logic;
   end record;
 
   constant cu_sched_empty : cu_sched := (
-    state                  => SCHED_IDLE,
-    valid                  => '0',
-    startflag              => '0',
-    element1_reads         => (others => '0'),
-    element2_reads         => (others => '0'),
-    accum_cnt              => (others => '0'),
-    accum_pass_cnt         => (others => '0'),
-    accum_write            => '0',
-    accum_write_result     => (others => '0'),
-    element_fifo_rd => '0'
+    state              => SCHED_IDLE,
+    valid              => '0',
+    startflag          => '0',
+    element1_reads     => (others => '0'),
+    element2_reads     => (others => '0'),
+    accum_cnt          => (others => '0'),
+    accum_pass_cnt     => (others => '0'),
+    accum_write        => '0',
+    accum_write_result => (others => '0'),
+    element_fifo_rd    => '0'
     );
 
   type fifo_controls is record
@@ -125,7 +131,7 @@ package cu_snap_package is
 
     element1_fifo : elementfifo_item;
     element2_fifo : elementfifo_item;
-    
+
     clk_kernel : std_logic;
   end record;
 
@@ -144,10 +150,16 @@ package body cu_snap_package is
     r.element2_reads <= (others => '0');
     r.element2_data  <= (others => '0');
 
+    r.element1_last <= '0';
+    r.element2_last <= '0';
+
     r.element_reads_valid <= '0';
 
     r.element1_wren <= '0';
     r.element2_wren <= '0';
+
+    r.element1_rst <= '1';
+    r.element2_rst <= '1';
 
     r.filled <= '0';
   end procedure cu_reset;

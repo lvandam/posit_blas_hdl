@@ -377,15 +377,15 @@ architecture positdot_unit of positdot_unit is
   signal q, r   : cu_int;
   signal re     : cu_ext;
 
-  signal el1_posit_in, el2_posit_in       : std_logic_vector(POSIT_NBITS-1 downto 0);
-  signal element1, element2               : value;
-  signal el1_el2_valid                    : std_logic;
-  signal product                          : value_product;
-  signal accum_result_raw                 : value_accum;
-  signal accum_result                     : std_logic_vector(POSIT_NBITS-1 downto 0);
-  signal accum_inf, accum_zero            : std_logic;
-  signal posit_done_mul, posit_done_accum : std_logic;
-  signal reset_accum                      : std_logic;
+  signal el1_posit_in, el2_posit_in                              : std_logic_vector(POSIT_NBITS-1 downto 0);
+  signal element1, element2                                      : value;
+  signal el1_el2_valid                                           : std_logic;
+  signal product                                                 : value_product;
+  signal accum_result_raw                                        : value_accum;
+  signal accum_result                                            : std_logic_vector(POSIT_NBITS-1 downto 0);
+  signal accum_inf, accum_zero                                   : std_logic;
+  signal posit_done_mul, posit_done_accum, posit_truncated_accum : std_logic;
+  signal reset_accum                                             : std_logic;
 begin
   reset <= not reset_n;
 
@@ -808,6 +808,7 @@ begin
 
 
   loader_comb : process(r,
+                        re.element1_fifo, re.element2_fifo,
                         rs,
                         cr1_r, cr2_r,
                         control_start,
@@ -820,6 +821,8 @@ begin
     variable v            : cu_int;
     variable t            : std_logic;
     variable cr1_v, cr2_v : reg;
+
+    variable element1_valid, element2_valid : std_logic := '0';
   begin
     cr1_v := cr1_r;
     cr2_v := cr2_r;
@@ -938,7 +941,6 @@ begin
           v.state := LOAD_LOADX_LOADY;  -- Load reads and elements
         end if;
 
-      -- Load the values for the read X, Load the values for the element Y, State to stream in the probabilities
       when LOAD_LOADX_LOADY =>
         v.element_reads_valid := '0';
 
@@ -955,7 +957,7 @@ begin
         -- Always ready to receive length
         cr1_v.str_element_elem_out.len.ready   := '1';
         cr2_v.str_element_elem_out.len.ready   := '1';
-        -- Always ready to receive posit
+        -- Ready to receive posit
         cr1_v.str_element_elem_out.posit.ready := '1';
         cr2_v.str_element_elem_out.posit.ready := '1';
 
@@ -1012,13 +1014,65 @@ begin
           v.element2_data  := (others => '0');
         end if;
 
-        -- If all vector posits are loaded in, go to the next state to load the next batch information
+        -- If FIFOs are full, process and read in elements again
+        if(r.element1_reads >= 2032) then
+          cr1_v.str_element_elem_out.posit.ready := '0';
+        end if;
+        if(r.element2_reads >= 2032) then
+          cr2_v.str_element_elem_out.posit.ready := '0';
+        end if;
+
+        if(r.element1_reads >= 2032 and r.element2_reads >= 2032) then
+          v.wed.batches         := r.wed.batches;
+          v.element_reads_valid := '0';
+          v.element1_last       := '0';
+          v.element2_last       := '0';
+
+          v.state := LOAD_WAIT_LAUNCH_PART;
+        end if;
+
         if(r.element1_last = '1' and r.element2_last = '1') then
           v.wed.batches         := r.wed.batches - 1;
           v.element_reads_valid := '1';
           v.element1_last       := '0';
           v.element2_last       := '0';
-          v.state               := LOAD_LAUNCH;
+
+          v.state := LOAD_LAUNCH;
+        end if;
+
+      when LOAD_WAIT_LAUNCH_PART =>
+        if(cr1_v.str_element_elem_in.posit.valid = '1') then
+          element1_valid := '1';
+        end if;
+        if(cr2_v.str_element_elem_in.posit.valid = '1') then
+          element2_valid := '1';
+        end if;
+
+        if(element1_valid = '1' and element2_valid = '1') then
+          v.wed.batches         := r.wed.batches;
+          v.element_reads_valid := '1';
+
+          v.state := LOAD_LAUNCH_PART;
+        end if;
+
+      when LOAD_LAUNCH_PART =>
+        element1_valid := '0';
+        element2_valid := '0';
+        if r.filled = '1' then
+          if rs.state = SCHED_DONE_PART then
+            v.filled         := '0';
+            v.element1_reads := (others => '0');
+            v.element2_reads := (others => '0');
+
+            -- We can start loading a new batch
+            v.state := LOAD_LOADX_LOADY;
+          end if;
+        end if;
+
+        -- If the scheduler is idle
+        if rs.state = SCHED_IDLE and v.state /= LOAD_LOADX_LOADY and re.element1_fifo.c.empty = '0' and re.element2_fifo.c.empty = '0' then
+          -- We can signal the scheduler to start processing:
+          v.filled := '1';
         end if;
 
       -- A new batch is ready to be started
@@ -1040,7 +1094,7 @@ begin
         end if;
 
         -- If the scheduler is idle
-        if rs.state = SCHED_IDLE and v.state /= LOAD_DONE then
+        if rs.state = SCHED_IDLE and v.state /= LOAD_DONE and re.element1_fifo.c.empty = '0' and re.element2_fifo.c.empty = '0' then
           -- We can signal the scheduler to start processing:
           v.filled := '1';
         end if;
@@ -1223,15 +1277,30 @@ begin
             vs.accum_pass_cnt := rs.accum_pass_cnt + 1;
             dumpStdOut("PASS " & integer'image(int(vs.accum_pass_cnt)));
 
-            if(rs.accum_pass_cnt = align_aeq(rs.element1_reads, 3) - 1 and rs.startflag = '0') then
-              vs.accum_write        := '1';
-              vs.accum_write_result := accum_result;
-
+            if((re.element1_fifo.c.empty = '1' or re.element2_fifo.c.empty = '1') and rs.startflag = '0') then
               vs.valid := '0';          -- Next inputs are not valid anymore
-              vs.state := SCHED_DONE;
+              vs.state := SCHED_LAST;
             end if;
           end if;
         end if;
+
+      when SCHED_LAST =>
+        if(rs.accum_cnt = 4 and posit_done_accum = '1') then
+          vs.accum_pass_cnt := rs.accum_pass_cnt + 1;
+          dumpStdOut("PASS " & integer'image(int(vs.accum_pass_cnt)));
+
+          if(r.state = LOAD_LAUNCH_PART) then
+            vs.state := SCHED_DONE_PART;
+          else
+            vs.accum_write        := '1';
+            vs.accum_write_result := accum_result;
+
+            vs.state := SCHED_DONE;
+          end if;
+        end if;
+
+      when SCHED_DONE_PART =>
+        vs.state := SCHED_IDLE;
 
       when SCHED_DONE =>
         vs.accum_cnt := (others => '0');
@@ -1256,20 +1325,6 @@ begin
       end if;
     end if;
   end process;
-
-  -- Element FIFO control
-  -- process(re)
-  -- begin
-  --   if(rising_edge(re.clk_kernel)) then
-  --     re.element1_fifo.c.rd_en <= '0';
-  --     re.element2_fifo.c.rd_en <= '0';
-  --
-  --     if(re.element1_fifo.c.empty = '0' and re.element2_fifo.c.empty = '0' and rs.valid = '1') then  -- Make sure vector elements are synced up
-  --       re.element1_fifo.c.rd_en <= '1';
-  --       re.element2_fifo.c.rd_en <= '1';
-  --     end if;
-  --   end if;
-  -- end process;
 
   re.element1_fifo.c.rd_en <= rs.element_fifo_rd;
   re.element2_fifo.c.rd_en <= rs.element_fifo_rd;
@@ -1341,40 +1396,44 @@ begin
   -- POSIT ACCUMULATION
   gen_accum_es2 : if POSIT_ES = 2 generate
     posit_accum_es2_inst : positaccum_16_raw port map (
-      clk    => re.clk_kernel,
-      rst    => reset_accum,
-      in1    => prod2val(product),
-      start  => posit_done_mul,
-      result => accum_result_raw,
-      done   => posit_done_accum
+      clk       => re.clk_kernel,
+      rst       => reset_accum,
+      in1       => prod2val(product),
+      start     => posit_done_mul,
+      result    => accum_result_raw,
+      done      => posit_done_accum,
+      truncated => posit_truncated_accum
       );
   end generate;
   gen_accum_es3 : if POSIT_ES = 3 generate
     posit_accum_es3_inst : positaccum_16_raw_es3 port map (
-      clk    => re.clk_kernel,
-      rst    => reset_accum,
-      in1    => prod2val(product),
-      start  => posit_done_mul,
-      result => accum_result_raw,
-      done   => posit_done_accum
+      clk       => re.clk_kernel,
+      rst       => reset_accum,
+      in1       => prod2val(product),
+      start     => posit_done_mul,
+      result    => accum_result_raw,
+      done      => posit_done_accum,
+      truncated => posit_truncated_accum
       );
   end generate;
 
   -- POSIT NORMALIZATION
   gen_normalize_es2 : if POSIT_ES = 2 generate
-    posit_normalize_es2_inst : posit_normalize port map (
-      in1    => accum2val(accum_result_raw),
-      result => accum_result,
-      inf    => accum_inf,
-      zero   => accum_zero
+    posit_normalize_es2_inst : posit_normalize_accum port map (
+      in1       => accum_result_raw,
+      truncated => posit_truncated_accum,
+      result    => accum_result,
+      inf       => accum_inf,
+      zero      => accum_zero
       );
   end generate;
   gen_normalize_es3 : if POSIT_ES = 3 generate
-    posit_normalize_es3_inst : posit_normalize_es3 port map (
-      in1    => accum2val(accum_result_raw),
-      result => accum_result,
-      inf    => accum_inf,
-      zero   => accum_zero
+    posit_normalize_es3_inst : posit_normalize_accum_es3 port map (
+      in1       => accum_result_raw,
+      truncated => posit_truncated_accum,
+      result    => accum_result,
+      inf       => accum_inf,
+      zero      => accum_zero
       );
   end generate;
 

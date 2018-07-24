@@ -215,6 +215,7 @@ int main(int argc, char ** argv)
 
                 posit<NBITS, ES> res_sw(0);
                 for(int i = 0; i < vector1.size(); i++) {
+                    cout << vector1[i] << endl;
                     res_sw = res_sw + vector1[i] * vector2[i];
                 }
 

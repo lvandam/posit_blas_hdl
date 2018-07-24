@@ -19,6 +19,8 @@ package cu_snap_package is
     LOAD_RESET_START,
     LOAD_REQUEST_DATA,
     LOAD_LOADX_LOADY,
+    LOAD_WAIT_LAUNCH_PART,
+    LOAD_LAUNCH_PART,
     LOAD_LAUNCH,
     LOAD_DONE
     );
@@ -51,6 +53,8 @@ package cu_snap_package is
     SCHED_LOAD_FIRST,
     SCHED_STARTUP,
     SCHED_PROCESSING,
+    SCHED_LAST,
+    SCHED_DONE_PART,
     SCHED_DONE
     );
 

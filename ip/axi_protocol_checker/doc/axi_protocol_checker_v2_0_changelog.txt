@@ -1,0 +1,158 @@
+2017.4:
+ * Version 2.0 (Rev. 1)
+ * General: pc_status is now optionally has mark_debug attribute controlled by hidden user_param enable_mark_debug
+ * General: Added has_wstrb parameter for metadata assertion checks
+ * Revision change in one or more subcores
+
+2017.3:
+ * Version 2.0
+ * General: Removed user param only ENABLE_EXT_CHECKS and Fixed the pc_status width to 160
+ * Revision change in one or more subcores
+
+2017.2:
+ * Version 1.1 (Rev. 11)
+ * General: Minor timing optimization for synthesis
+ * General: X-propration checks on pc interface for simulation
+ * General: Improved IP Integrator automation of MAX_RD_BURSTS and MAX_WR_BURSTS
+
+2017.1:
+ * Version 1.1 (Rev. 10)
+ * Bug Fix: pc_status[32] AXI_ERRS_BRESP_AW triggers as soon as BVALID is asserted instead of also waiting for BREADY.
+ * Bug Fix: pc_status[58] AXI_ERRS_RDATA_NUM triggers as soon as RVALID is asserted instead of also waiting for RREADY.
+ * New Feature: Added timeout checks against the next expected assertion of each VALID handshake output.
+ * New Feature: Added LIGHT_WEIGHT mode to reduce synthesis utilization.
+ * New Feature: Added AXI4Lite status interface.
+ * New Feature: Added ID value keying to read and write transaction CAMs to prevent excessive logic for high ID_WIDTH.
+ * Other: Sub core IP clk_wiz version changed to 5.4
+ * Other: Updated assertion message text to refer to current spec version.
+
+2016.4:
+ * Version 1.1 (Rev. 9)
+ * No changes
+
+2016.3:
+ * Version 1.1 (Rev. 9)
+ * Clarified description of pc_asserted[59] (AXI_ERRS_RID).
+ * Source HDL files are concatenated into a single file to speed up synthesis and simulation. No changes required by the user
+
+2016.2:
+ * Version 1.1 (Rev. 8)
+ * No changes
+
+2016.1:
+ * Version 1.1 (Rev. 8)
+ * Sub core IP clk_wiz version changed to 5.3
+
+2015.4.2:
+ * Version 1.1 (Rev. 7)
+ * No changes
+
+2015.4.1:
+ * Version 1.1 (Rev. 7)
+ * No changes
+
+2015.4:
+ * Version 1.1 (Rev. 7)
+ * No changes
+
+2015.3:
+ * Version 1.1 (Rev. 7)
+ * IP revision number added to HDL module, library, and include file names, to support designs with both locked and upgraded IP instances
+
+2015.2.1:
+ * Version 1.1 (Rev. 6)
+ * No changes
+
+2015.2:
+ * Version 1.1 (Rev. 6)
+ * No changes
+
+2015.1:
+ * Version 1.1 (Rev. 6)
+ * Enabled out-of-context clock frequency setting by adding FREQ_HZ parameter to clock interface aclk
+ * The support status for Kintex UltraScale is changed from Pre-Production to Production.
+ * Fixed early triggering of pc_asserted[29] (MAX_W_WAITS).
+
+2014.4.1:
+ * Version 1.1 (Rev. 5)
+ * No changes
+
+2014.4:
+ * Version 1.1 (Rev. 5)
+ * Internal device family change, no functional changes
+
+2014.3:
+ * Version 1.1 (Rev. 4)
+ * Updated IP integrator automation to latest API, no functional changes
+
+2014.2:
+ * Version 1.1 (Rev. 3)
+ * Increased default MAX_xx_BURSTS to 8 (from 2); improved message text for CAM overflow.
+
+2014.1:
+ * Version 1.1 (Rev. 2)
+ * Internal device family name change, no functional changes
+
+2013.4:
+ * Version 1.1 (Rev. 1)
+ * Kintex UltraScale Pre-Production support
+
+2013.3:
+ * Version 1.1
+ * Reduced warnings in synthesis and simulation.
+ * Added support for Cadence IES and Synopsys VCS simulators.
+
+2013.2:
+ * Version 1.0 (Rev. 1)
+ * Repackaged to enable internal version management, no functional changes.
+
+2013.1:
+ * Version 1.0
+ * Native Vivado Release
+ * There have been no functional or interface changes to this IP.  The version number has changed to support unique versioning in Vivado starting with 2013.1.
+
+(c) Copyright 2012 - 2017 Xilinx, Inc. All rights reserved.
+
+This file contains confidential and proprietary information
+of Xilinx, Inc. and is protected under U.S. and
+international copyright and other intellectual property
+laws.
+
+DISCLAIMER
+This disclaimer is not a license and does not grant any
+rights to the materials distributed herewith. Except as
+otherwise provided in a valid license issued to you by
+Xilinx, and to the maximum extent permitted by applicable
+law: (1) THESE MATERIALS ARE MADE AVAILABLE "AS IS" AND
+WITH ALL FAULTS, AND XILINX HEREBY DISCLAIMS ALL WARRANTIES
+AND CONDITIONS, EXPRESS, IMPLIED, OR STATUTORY, INCLUDING
+BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, NON-
+INFRINGEMENT, OR FITNESS FOR ANY PARTICULAR PURPOSE; and
+(2) Xilinx shall not be liable (whether in contract or tort,
+including negligence, or under any other theory of
+liability) for any loss or damage of any kind or nature
+related to, arising under or in connection with these
+materials, including for any direct, or any indirect,
+special, incidental, or consequential loss or damage
+(including loss of data, profits, goodwill, or any type of
+loss or damage suffered as a result of any action brought
+by a third party) even if such damage or loss was
+reasonably foreseeable or Xilinx had been advised of the
+possibility of the same.
+
+CRITICAL APPLICATIONS
+Xilinx products are not designed or intended to be fail-
+safe, or for use in any application requiring fail-safe
+performance, such as life-support or safety devices or
+systems, Class III medical devices, nuclear facilities,
+applications related to the deployment of airbags, or any
+other applications that could lead to death, personal
+injury, or severe property or environmental damage
+(individually and collectively, "Critical
+Applications"). Customer assumes the sole risk and
+liability of any use of Xilinx products in Critical
+Applications, subject only to applicable laws and
+regulations governing limitations on product liability.
+
+THIS COPYRIGHT NOTICE AND DISCLAIMER MUST BE RETAINED AS
+PART OF THIS FILE AT ALL TIMES.

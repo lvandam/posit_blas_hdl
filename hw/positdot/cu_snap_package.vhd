@@ -141,6 +141,13 @@ package cu_snap_package is
 
   procedure cu_reset (signal r : inout cu_int);
 
+  component psl_to_kernel is
+    port (
+      clk_psl    : in  std_logic;
+      clk_kernel : out std_logic
+      );
+  end component;
+
 end package cu_snap_package;
 
 package body cu_snap_package is

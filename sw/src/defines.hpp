@@ -10,8 +10,6 @@ using namespace sw::unum;
 #define NBITS 32
 #define ES 2
 
-#define DEBUG              1
-
 #ifndef DEBUG_PRECISION
 #define DEBUG_PRECISION 40
 #endif // DEBUG_PRECISION
@@ -38,7 +36,7 @@ typedef union union_32 {
 
 struct Entry {
     string name;
-    cpp_dec_float_50 value;
+    cpp_dec_float_100 value;
 };
 
 struct find_entry {

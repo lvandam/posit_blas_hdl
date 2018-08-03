@@ -16,11 +16,10 @@
 using namespace std;
 using namespace sw::unum;
 
-cpp_dec_float_50 decimal_accuracy(cpp_dec_float_50 exact, cpp_dec_float_50 computed);
+cpp_dec_float_100 decimal_accuracy(cpp_dec_float_100 exact, cpp_dec_float_100 computed);
 
-// void writeBenchmark(PairHMMFloat<cpp_dec_float_50> &pairhmm_dec50, PairHMMFloat<float> &pairhmm_float,
-//                     PairHMMPosit &pairhmm_posit, DebugValues<posit<NBITS, ES>> &hw_debug_values,
-//                     std::string filename = "pairhmm_values.txt", bool printDate = true, bool overwrite = false);
+void writeBenchmark(DebugValues<posit<NBITS, ES> > &hw_debug_values, DebugValues<posit<NBITS, ES> > &sw_debug_values, DebugValues<float> &float_debug_values,
+    DebugValues<cpp_dec_float_100> &dec_debug_values, std::string filename);
 
 int roundToMultiple(int toRound, int multiple);
 

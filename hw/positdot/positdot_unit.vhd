@@ -381,7 +381,7 @@ architecture positdot_unit of positdot_unit is
   signal element1, element2                                      : value;
   signal el1_el2_valid                                           : std_logic;
   signal product                                                 : value_product;
-  signal accum_result_raw                                        : value_accum;
+  signal accum_result_raw                                        : value_accum_prod;
   signal accum_result                                            : std_logic_vector(POSIT_NBITS-1 downto 0);
   signal accum_inf, accum_zero                                   : std_logic;
   signal posit_done_mul, posit_done_accum, posit_truncated_accum : std_logic;
@@ -1180,13 +1180,13 @@ begin
   --  \_____| |_|  \___/   \___| |_|\_\
   ---------------------------------------------------------------------------------------------------
   -- In case the kernel has to run slower due to timing constraints not being met, use this to lower the clock frequency
-  -- kernel_clock_gen : psl_to_kernel port map (
-  --   clk_psl    => clk,
-  --   clk_kernel => re.clk_kernel
-  --   );
+  kernel_clock_gen : psl_to_kernel port map (
+    clk_psl    => clk,
+    clk_kernel => re.clk_kernel
+    );
 
   -- Use this to keep everything in the same clock domain:
-  re.clk_kernel <= clk;
+  -- re.clk_kernel <= clk;
 
 ---------------------------------------------------------------------------------------------------
 --   ____            _                     _
@@ -1395,10 +1395,10 @@ begin
 
   -- POSIT ACCUMULATION
   gen_accum_es2 : if POSIT_ES = 2 generate
-    posit_accum_es2_inst : positaccum_16_raw port map (
+    posit_accum_es2_inst : positaccum_prod_16_raw port map (
       clk       => re.clk_kernel,
       rst       => reset_accum,
-      in1       => prod2val(product),
+      in1       => product,
       start     => posit_done_mul,
       result    => accum_result_raw,
       done      => posit_done_accum,
@@ -1406,10 +1406,10 @@ begin
       );
   end generate;
   gen_accum_es3 : if POSIT_ES = 3 generate
-    posit_accum_es3_inst : positaccum_16_raw_es3 port map (
+    posit_accum_es3_inst : positaccum_prod_16_raw_es3 port map (
       clk       => re.clk_kernel,
       rst       => reset_accum,
-      in1       => prod2val(product),
+      in1       => product,
       start     => posit_done_mul,
       result    => accum_result_raw,
       done      => posit_done_accum,
@@ -1419,7 +1419,7 @@ begin
 
   -- POSIT NORMALIZATION
   gen_normalize_es2 : if POSIT_ES = 2 generate
-    posit_normalize_es2_inst : posit_normalize_accum port map (
+    posit_normalize_es2_inst : posit_normalize_accum_prod port map (
       in1       => accum_result_raw,
       truncated => posit_truncated_accum,
       result    => accum_result,
@@ -1428,7 +1428,7 @@ begin
       );
   end generate;
   gen_normalize_es3 : if POSIT_ES = 3 generate
-    posit_normalize_es3_inst : posit_normalize_accum_es3 port map (
+    posit_normalize_es3_inst : posit_normalize_accum_prod_es3 port map (
       in1       => accum_result_raw,
       truncated => posit_truncated_accum,
       result    => accum_result,

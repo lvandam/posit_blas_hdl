@@ -41,7 +41,7 @@
 #endif
 
 #ifndef DEBUG
-    #define DEBUG 1
+    #define DEBUG 0
 #endif
 
 /* Burst step length in bytes */
@@ -67,6 +67,10 @@ addr_lohi;
  */
 int main(int argc, char ** argv)
 {
+        // Times
+        double start, stop;
+        double t_fill_vector, t_fill_table, t_prepare_column, t_create_core, t_fpga, t_sw, t_float = 0.0;
+
         srand(0);
         flush(cout);
 
@@ -82,38 +86,35 @@ int main(int argc, char ** argv)
         if (argc >= 3) istringstream(argv[2]) >> calculate_sw;
         if (argc >= 4) istringstream(argv[3]) >> show_results;
 
-        // batches = std::vector<t_batch>(workload->batches);
-        // for (int q = 0; q < workload->batches; q++) {
-        //         fill_batch(batches[q], q, workload->bx[q], workload->by[q], powf(2.0, initial_constant_power)); // HW unit starts with last batch
-        //         print_batch_info(batches[q]);
-        // }
-
-        // PairHMMPosit pairhmm_posit(workload, show_results, show_table);
-        // PairHMMFloat<float> pairhmm_float(workload, show_results, show_table);
-        // PairHMMFloat<cpp_dec_float_50> pairhmm_dec50(workload, show_results, show_table);
+        cout << "=========================================" << endl;
+        cout << "LENGTH = " << length << endl;
 
         if (calculate_sw) {
                 DEBUG_PRINT("Calculating on host...\n");
-                // pairhmm_posit.calculate(batches);
-                // pairhmm_float.calculate(batches);
-                // pairhmm_dec50.calculate(batches);
         }
 
         DEBUG_PRINT("Filling posit vectors...\n");
         // Make a table with element vectors
+        start = omp_get_wtime();
         std::vector<posit<NBITS, ES> > vector1, vector2;
-
-        // vector1.push_back(posit<NBITS,ES>(1)); vector2.push_back(posit<NBITS,ES>(1));
-        // vector1.push_back(posit<NBITS,ES>(1)); vector2.push_back(posit<NBITS,ES>(0));
-        // vector1.push_back(posit<NBITS,ES>(5)); vector2.push_back(posit<NBITS,ES>(2));
-        // vector1.push_back(posit<NBITS,ES>(2)); vector2.push_back(posit<NBITS,ES>(3));
-
         for(int i = 0; i < length; i++) {
-            vector1.push_back(posit<NBITS, ES>(i)); vector2.push_back(posit<NBITS, ES>(i));
+            // Some simple test case
+            posit<NBITS, ES> pos1, pos2;
+            pos1.set_raw_bits(i);
+            pos2.set_raw_bits(i * 2);
+            pos2 = pos2 * 1e26;
+
+            vector1.push_back(pos1);
+            vector2.push_back(pos2);
         }
+        stop = omp_get_wtime();
+        t_fill_vector = stop - start;
 
         DEBUG_PRINT("Creating Arrow table...\n");
+        start = omp_get_wtime();
         shared_ptr<arrow::Table> table_elements = create_table_elements(vector1, vector2);
+        stop = omp_get_wtime();
+        t_fill_table = stop - start;
 
         DEBUG_PRINT("Creating result buffers...\n");
         // Create arrays for results to be written to (per SA core)
@@ -126,25 +127,22 @@ int main(int argc, char ** argv)
                 }
         }
 
-        // Calculate on FPGA
         // Create a platform
-#if (PLATFORM == 0)
-        shared_ptr<fletcher::EchoPlatform> platform(new fletcher::EchoPlatform());
-#elif (PLATFORM == 2)
         shared_ptr<fletcher::SNAPPlatform> platform(new fletcher::SNAPPlatform());
-#else
-#error "PLATFORM must be 0 or 2"
-#endif
 
         DEBUG_PRINT("Preparing column buffers...\n");
         // Prepare the colummn buffers
+        start = omp_get_wtime();
         std::vector<std::shared_ptr<arrow::Column> > columns;
         columns.push_back(table_elements->column(0));
         columns.push_back(table_elements->column(1));
-
         platform->prepare_column_chunks(columns); // This requires a modification in Fletcher (to accept vectors)
+        stop = omp_get_wtime();
+        t_prepare_column = stop - start;
 
         DEBUG_PRINT("Creating UserCore instance...\n");
+
+        start = omp_get_wtime();
         // Create a UserCore
         PositDotUserCore uc(static_pointer_cast<fletcher::FPGAPlatform>(platform));
 
@@ -156,7 +154,6 @@ int main(int argc, char ** argv)
         for(int i = 0; i < roundToMultiple(CORES, 2); i++) {
                 addr_lohi val;
                 val.full = (uint64_t) result_hw[i];
-                printf("Values buffer @ %016lX\n", val.full);
                 platform->write_mmio(REG_RESULT_DATA_OFFSET + i, val.full);
         }
 
@@ -168,8 +165,11 @@ int main(int argc, char ** argv)
                 batch_offsets[i] = i * BATCHES_PER_CORE;
         }
         uc.set_batch_offsets(batch_offsets);
+        stop = omp_get_wtime();
+        t_create_core = stop - start;
 
         // Run
+        start = omp_get_wtime();
         uc.start();
 
 #ifdef DEBUG
@@ -183,6 +183,9 @@ int main(int argc, char ** argv)
                 usleep(10);
         }
         while ((result_hw[CORES - 1][0] == 0xDEADBEEF));
+
+        stop = omp_get_wtime();
+        t_fpga = stop - start;
 
         // Get the results from the UserCore
         for(int i = 0; i < CORES; i++) {
@@ -202,35 +205,65 @@ int main(int argc, char ** argv)
 
         // Check for errors with SW calculation
         if (calculate_sw) {
-                DebugValues<posit<NBITS, ES> > hw_debug_values;
+                DebugValues<posit<NBITS, ES> > hw_debug_values, sw_debug_values;
+                DebugValues<float > float_debug_values;
+                DebugValues<cpp_dec_float_100 > dec_debug_values;
 
                 for (int c = 0; c < CORES; c++) {
-                    for (int i = 0; i < BATCHES_PER_CORE; i++) {
-                        // Store HW posit result for decimal accuracy calculation
-                        posit<NBITS, ES> res_hw;
-                        res_hw.set_raw_bits(result_hw[c][i]);
-                        hw_debug_values.debugValue(res_hw, "result[%d][%d]", c * BATCHES_PER_CORE + (BATCHES_PER_CORE - i - 1), 0);
-                    }
+                        for (int i = 0; i < BATCHES_PER_CORE; i++) {
+                                // Store HW posit result for decimal accuracy calculation
+                                posit<NBITS, ES> res_hw;
+                                res_hw.set_raw_bits(result_hw[c][i]);
+                                hw_debug_values.debugValue(res_hw, "result[%d][%d]", c, 0);
+                        }
                 }
 
+                start = omp_get_wtime();
                 posit<NBITS, ES> res_sw(0);
                 for(int i = 0; i < vector1.size(); i++) {
-                    cout << vector1[i] << endl;
-                    res_sw = res_sw + vector1[i] * vector2[i];
+                        res_sw = res_sw + vector1[i] * vector2[i];
                 }
+                stop = omp_get_wtime();
+                t_sw = stop - start;
+                sw_debug_values.debugValue(res_sw, "result[0][0]");
 
                 cout << "SW RESULT: " << hexstring(res_sw.collect()) << endl;
 
-                // writeBenchmark(pairhmm_dec50, pairhmm_float, pairhmm_posit, hw_debug_values,
-                //                std::to_string(initial_constant_power) + ".txt", false, true);
+                cout << "Calculating in cpp_dec_float_100..." << endl;
+                cpp_dec_float_100 res_dec = 0.0;
+                for(int i = 0; i < vector1.size(); i++) {
+                        res_dec = res_dec + (cpp_dec_float_100)vector1[i] * (cpp_dec_float_100)vector2[i];
+                }
+                dec_debug_values.debugValue(res_dec, "result[0][0]");
 
-                // int errs_posit = 0;
-                // errs_posit = pairhmm_posit.count_errors(result_hw);
-                // DEBUG_PRINT("Posit errors: %d\n", errs_posit);
+                cout << "Calculating in float..." << endl;
+                start = omp_get_wtime();
+                float res_float = 0.0;
+                for(int i = 0; i < vector1.size(); i++) {
+                        res_float = res_float + (float)vector1[i] * (float)vector2[i];
+                }
+                stop = omp_get_wtime();
+                t_float = stop - start;
+                float_debug_values.debugValue(res_float, "result[0][0]");
+
+                cout << "Writing benchmark file..." << endl;
+                writeBenchmark(hw_debug_values, sw_debug_values, float_debug_values, dec_debug_values,
+                               "positdot_es2_" + std::to_string(length) + ".txt");
         }
 
+        cout << "Resetting user core..." << endl;
         // Reset UserCore
         uc.reset();
+
+        cout << "Adding timing data..." << endl;
+        time_t t = chrono::system_clock::to_time_t(chrono::system_clock::now());
+        ofstream outfile("positdot_es2_" + std::to_string(length) + ".txt", ios::out | ios::app);
+        outfile << endl << "===================" << endl;
+        outfile << ctime(&t) << endl;
+        outfile << "Vector lengths = " << length << endl;
+        outfile << "t_fill_vector,t_fill_table,t_prepare_column,t_create_core,t_fpga,t_sw,t_float" << endl;
+        outfile << t_fill_vector <<","<< t_fill_table <<","<< t_prepare_column <<","<< t_create_core <<","<< t_fpga <<","<< t_sw <<","<< t_float << endl;
+        outfile.close();
 
         return 0;
 }

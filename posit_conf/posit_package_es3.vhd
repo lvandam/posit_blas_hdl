@@ -10,8 +10,8 @@ use work.posit_common.all;
 
 package posit_package is
 
-  constant POSIT_NBITS            : natural := 32;
-  constant POSIT_ES               : natural := 3;
+  constant POSIT_NBITS : natural := 32;
+  constant POSIT_ES    : natural := 3;
 
   -- POSIT SPECIFIC (Raw)
   subtype value is std_logic_vector(POSIT_SERIALIZED_WIDTH_ES3-1 downto 0);
@@ -28,8 +28,11 @@ package posit_package is
   subtype value_accum is std_logic_vector(POSIT_SERIALIZED_WIDTH_ACCUM_ES3-1 downto 0);
   constant value_accum_empty : value_accum := (POSIT_SERIALIZED_WIDTH_ACCUM_ES3-1 downto 1 => '0', others => '1');
 
-  function prod2val (a : in value_product) return value;
-  function sum2val (a  : in value_sum) return value;
+  subtype value_accum_prod is std_logic_vector(POSIT_SERIALIZED_WIDTH_ACCUM_PROD_ES3-1 downto 0);
+  constant value_accum_prod_empty : value_accum_prod := (POSIT_SERIALIZED_WIDTH_ACCUM_PROD_ES3-1 downto 1 => '0', others => '1');
+
+  function prod2val (a  : in value_product) return value;
+  function sum2val (a   : in value_sum) return value;
   function accum2val (a : in value_accum) return value;
 
 end package;
@@ -91,5 +94,13 @@ package body posit_package is
     assert signed(tmp(36 downto 28)) = signed(a(262 downto 254)) report "Scale loss (accum2val), val=" & integer'image(to_integer(signed(tmp(36 downto 28)))) & ", sum=" & integer'image(to_integer(signed(a(262 downto 254)))) severity error;
     return tmp;
   end function accum2val;
+
+  -- Accum Product layout:
+  -- 265 1       sign
+  -- 264 10      scale
+  -- 254 252     fraction
+  -- 2   1       inf
+  -- 1   1       zero
+  -- 0
 
 end package body;

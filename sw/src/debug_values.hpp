@@ -19,7 +19,7 @@
 #include "defines.hpp"
 
 using namespace std;
-using boost::multiprecision::cpp_dec_float_50;
+using boost::multiprecision::cpp_dec_float_100;
 
 template<class T>
 class DebugValues {
@@ -39,7 +39,7 @@ public:
         Entry entry;
         entry.name = string(buf);
 
-        entry.value = static_cast<cpp_dec_float_50>(value);
+        entry.value = static_cast<cpp_dec_float_100>(value);
         items.push_back(entry);
 
 #ifdef DEBUG_VALUES
@@ -74,8 +74,8 @@ public:
         return result;
     }
 
-    std::vector<cpp_dec_float_50> getValues() {
-        std::vector<cpp_dec_float_50> result;
+    std::vector<cpp_dec_float_100> getValues() {
+        std::vector<cpp_dec_float_100> result;
         for (auto el : items) {
             result.push_back(el.value);
         }

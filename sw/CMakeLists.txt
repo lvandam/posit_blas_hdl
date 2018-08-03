@@ -4,8 +4,8 @@ project(posit_dot)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS "-Wall -Wextra -g -fext-numeric-literals -DPOSIT_VERBOSE_OUTPUT")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -DDEBUG=1 ")
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -fext-numeric-literals")
+# set(CMAKE_CXX_FLAGS_DEBUG "-g -DDEBUG=1 -DPOSIT_VERBOSE_OUTPUT")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 set(EXTERNAL_INSTALL_LOCATION ${CMAKE_BINARY_DIR}/external)
@@ -53,7 +53,7 @@ find_library(LIB_SNAP snap HINTS $ENV{SNAP_ROOT}/software/lib)
 message(STATUS "SNAP libsnap.so at: " ${LIB_SNAP})
 set(LIB_PLATFORM ${LIB_SNAP})
 
-option(ENABLE_DEBUG "Enable debugging" ON)
+option(ENABLE_DEBUG "Enable debugging" OFF)
 
 if (ENABLE_DEBUG)
     message(STATUS "DEBUG ON")

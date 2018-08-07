@@ -116,16 +116,16 @@ int main(int argc, char ** argv)
         stop = omp_get_wtime();
         t_fill_table = stop - start;
 
-        DEBUG_PRINT("Creating result buffers...\n");
-        // Create arrays for results to be written to (per SA core)
-        std::vector<uint32_t *> result_hw(roundToMultiple(CORES, 2));
-        for(int i = 0; i < roundToMultiple(CORES, 2); i++) {
-                rc = posix_memalign((void * * ) &(result_hw[i]), BURST_LENGTH * roundToMultiple(CORES, 2), sizeof(uint32_t) * num_rows);
-                // clear values buffer
-                for (uint32_t j = 0; j < num_rows; j++) {
-                        result_hw[i][j] = 0xDEADBEEF;
-                }
-        }
+        // DEBUG_PRINT("Creating result buffers...\n");
+        // // Create arrays for results to be written to (per SA core)
+        // std::vector<uint32_t *> result_hw(roundToMultiple(CORES, 2));
+        // for(int i = 0; i < roundToMultiple(CORES, 2); i++) {
+        //         rc = posix_memalign((void * * ) &(result_hw[i]), BURST_LENGTH * roundToMultiple(CORES, 2), sizeof(uint32_t) * num_rows);
+        //         // clear values buffer
+        //         for (uint32_t j = 0; j < num_rows; j++) {
+        //                 result_hw[i][j] = 0xDEADBEEF;
+        //         }
+        // }
 
         // Create a platform
         shared_ptr<fletcher::SNAPPlatform> platform(new fletcher::SNAPPlatform());
@@ -149,13 +149,13 @@ int main(int argc, char ** argv)
         // Reset UserCore
         uc.reset();
 
-        DEBUG_PRINT("Writing result buffer addresses...\n");
-        // Write result buffer addresses
-        for(int i = 0; i < roundToMultiple(CORES, 2); i++) {
-                addr_lohi val;
-                val.full = (uint64_t) result_hw[i];
-                platform->write_mmio(REG_RESULT_DATA_OFFSET + i, val.full);
-        }
+        // DEBUG_PRINT("Writing result buffer addresses...\n");
+        // // Write result buffer addresses
+        // for(int i = 0; i < roundToMultiple(CORES, 2); i++) {
+        //         addr_lohi val;
+        //         val.full = (uint64_t) result_hw[i];
+        //         platform->write_mmio(REG_RESULT_DATA_OFFSET + i, val.full);
+        // }
 
         // Configure the cores
         std::vector<uint32_t> batch_offsets;
@@ -178,29 +178,36 @@ int main(int argc, char ** argv)
         uc.wait_for_finish(10);
 #endif
 
+        // Read result from MMIO
+        uint32_t result_hw;
+        addr_lohi val;
+        platform->read_mmio(REG_RESULT_OFFSET, &val.full);
+        result_hw = val.half.hi;
+
         // Wait for last result of last SA core
-        do {
-                usleep(10);
-        }
-        while ((result_hw[CORES - 1][0] == 0xDEADBEEF));
+        // do {
+        //         usleep(10);
+        // }
+        // while ((result_hw[CORES - 1][0] == 0xDEADBEEF));
 
         stop = omp_get_wtime();
         t_fpga = stop - start;
 
-        // Get the results from the UserCore
-        for(int i = 0; i < CORES; i++) {
-                cout << "==================================" << endl;
-                cout << "== CORE " << i << endl;
-                cout << "==================================" << endl;
-                for(int j = 0; j < num_rows; j++) {
-                        cout << dec << j <<": " << hex << result_hw[i][j] << dec <<endl;
-                }
-                cout << "==================================" << endl;
-                cout << endl;
-        }
+        // // Get the results from the UserCore
+        // for(int i = 0; i < CORES; i++) {
+        //         cout << "==================================" << endl;
+        //         cout << "== CORE " << i << endl;
+        //         cout << "==================================" << endl;
+        //         for(int j = 0; j < num_rows; j++) {
+        //                 cout << dec << j <<": " << hex << result_hw[i][j] << dec <<endl;
+        //         }
+        //         cout << "==================================" << endl;
+        //         cout << endl;
+        // }
+        cout << dec <<"0: " << hex << result_hw << dec <<endl;
 
         posit<NBITS, ES> result_posit;
-        result_posit.set_raw_bits(result_hw[0][0]);
+        result_posit.set_raw_bits(result_hw); //result_hw[0][0]
         cout << "Result: " << pretty_print(result_posit) << endl;
 
         // Check for errors with SW calculation
@@ -209,14 +216,18 @@ int main(int argc, char ** argv)
                 DebugValues<float > float_debug_values;
                 DebugValues<cpp_dec_float_100 > dec_debug_values;
 
-                for (int c = 0; c < CORES; c++) {
-                        for (int i = 0; i < BATCHES_PER_CORE; i++) {
-                                // Store HW posit result for decimal accuracy calculation
-                                posit<NBITS, ES> res_hw;
-                                res_hw.set_raw_bits(result_hw[c][i]);
-                                hw_debug_values.debugValue(res_hw, "result[%d][%d]", c, 0);
-                        }
-                }
+                // for (int c = 0; c < CORES; c++) {
+                //         for (int i = 0; i < BATCHES_PER_CORE; i++) {
+                //                 // Store HW posit result for decimal accuracy calculation
+                //                 posit<NBITS, ES> res_hw;
+                //                 res_hw.set_raw_bits(result_hw[c][i]);
+                //                 hw_debug_values.debugValue(res_hw, "result[%d][%d]", c, 0);
+                //         }
+                // }
+
+                posit<NBITS, ES> res_hw;
+                res_hw.set_raw_bits(result_hw);
+                hw_debug_values.debugValue(res_hw, "result[0][0]");
 
                 start = omp_get_wtime();
                 posit<NBITS, ES> res_sw(0);

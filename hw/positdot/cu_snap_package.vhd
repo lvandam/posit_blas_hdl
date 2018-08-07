@@ -39,6 +39,9 @@ package cu_snap_package is
     element1_last : std_logic;
     element2_last : std_logic;
 
+    element1_full : std_logic;
+    element2_full : std_logic;
+
     element1_wren : std_logic;
     element2_wren : std_logic;
 
@@ -163,6 +166,9 @@ package body cu_snap_package is
 
     r.element1_last <= '0';
     r.element2_last <= '0';
+
+    r.element1_full <= '0';
+    r.element2_full <= '0';
 
     r.element_reads_valid <= '0';
 

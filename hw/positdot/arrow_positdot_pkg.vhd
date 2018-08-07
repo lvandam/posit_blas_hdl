@@ -281,6 +281,9 @@ package arrow_positdot_pkg is
       -- Batch offset (to fetch from Arrow)
       batch_offset : in std_logic_vector(REG_WIDTH-1 downto 0);
 
+      -- Result array
+      result : out std_logic_vector(REG_WIDTH-1 downto 0);
+
       ---------------------------------------------------------------------------
       -- Master bus posit vector 1
       ---------------------------------------------------------------------------

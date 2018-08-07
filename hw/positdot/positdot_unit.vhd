@@ -55,6 +55,9 @@ entity positdot_unit is
     -- Batch offset (to fetch from Arrow)
     batch_offset : in std_logic_vector(REG_WIDTH-1 downto 0);
 
+    -- Result array
+    result : out std_logic_vector(REG_WIDTH-1 downto 0);
+
     ---------------------------------------------------------------------------
     -- Master bus posit vector 1
     ---------------------------------------------------------------------------
@@ -118,6 +121,8 @@ architecture positdot_unit of positdot_unit is
   signal r_reset_start   : std_logic;
   signal r_busy          : std_logic;
   signal r_done          : std_logic;
+  signal r_result, result_write : std_logic_vector(REG_WIDTH-1 downto 0);
+  signal result_write_valid : std_logic;
 
   signal r_element1_off_hi                        : std_logic_vector(REG_WIDTH - 1 downto 0);
   signal r_element1_off_lo                        : std_logic_vector(REG_WIDTH - 1 downto 0);
@@ -568,53 +573,53 @@ begin
   -----------------------------------------------------------------------------
   -- ColumnWriter
   -----------------------------------------------------------------------------
-  result_cw : ColumnWriter
-    generic map (
-      BUS_ADDR_WIDTH     => BUS_ADDR_WIDTH,
-      BUS_LEN_WIDTH      => BUS_LEN_WIDTH,
-      BUS_DATA_WIDTH     => BUS_DATA_WIDTH,
-      BUS_STROBE_WIDTH   => BUS_DATA_WIDTH/8,
-      BUS_BURST_STEP_LEN => BUS_BURST_STEP_LEN,
-      BUS_BURST_MAX_LEN  => BUS_BURST_MAX_LEN,
-      INDEX_WIDTH        => INDEX_WIDTH_RESULT,
-      CFG                => "prim(32)",
-      CMD_TAG_ENABLE     => true,
-      CMD_TAG_WIDTH      => TAG_WIDTH_RESULT
-      )
-    port map (
-      bus_clk   => clk,
-      bus_reset => reset,
-      acc_clk   => clk,
-      acc_reset => reset,
-
-      cmd_valid    => result_cmd_valid,
-      cmd_ready    => result_cmd_ready,
-      cmd_firstIdx => result_cmd_firstIdx,
-      cmd_lastIdx  => result_cmd_lastIdx,
-      cmd_ctrl     => result_cmd_ctrl,
-      cmd_tag      => result_cmd_tag,
-
-      unlock_valid => result_unlock_valid,
-      unlock_ready => result_unlock_ready,
-      unlock_tag   => result_unlock_tag,
-
-      bus_wreq_valid => bus_result_wreq_valid,
-      bus_wreq_ready => bus_result_wreq_ready,
-      bus_wreq_addr  => bus_result_wreq_addr,
-      bus_wreq_len   => bus_result_wreq_len,
-
-      bus_wdat_valid  => bus_result_wdat_valid,
-      bus_wdat_ready  => bus_result_wdat_ready,
-      bus_wdat_data   => bus_result_wdat_data,
-      bus_wdat_strobe => bus_result_wdat_strobe,
-      bus_wdat_last   => bus_result_wdat_last,
-
-      in_valid  => in_result_valid,
-      in_ready  => in_result_ready,
-      in_last   => in_result_last,
-      in_dvalid => in_result_dvalid,
-      in_data   => in_result_data
-      );
+  -- result_cw : ColumnWriter
+  --   generic map (
+  --     BUS_ADDR_WIDTH     => BUS_ADDR_WIDTH,
+  --     BUS_LEN_WIDTH      => BUS_LEN_WIDTH,
+  --     BUS_DATA_WIDTH     => BUS_DATA_WIDTH,
+  --     BUS_STROBE_WIDTH   => BUS_DATA_WIDTH/8,
+  --     BUS_BURST_STEP_LEN => BUS_BURST_STEP_LEN,
+  --     BUS_BURST_MAX_LEN  => BUS_BURST_MAX_LEN,
+  --     INDEX_WIDTH        => INDEX_WIDTH_RESULT,
+  --     CFG                => "prim(32)",
+  --     CMD_TAG_ENABLE     => true,
+  --     CMD_TAG_WIDTH      => TAG_WIDTH_RESULT
+  --     )
+  --   port map (
+  --     bus_clk   => clk,
+  --     bus_reset => reset,
+  --     acc_clk   => clk,
+  --     acc_reset => reset,
+  --
+  --     cmd_valid    => result_cmd_valid,
+  --     cmd_ready    => result_cmd_ready,
+  --     cmd_firstIdx => result_cmd_firstIdx,
+  --     cmd_lastIdx  => result_cmd_lastIdx,
+  --     cmd_ctrl     => result_cmd_ctrl,
+  --     cmd_tag      => result_cmd_tag,
+  --
+  --     unlock_valid => result_unlock_valid,
+  --     unlock_ready => result_unlock_ready,
+  --     unlock_tag   => result_unlock_tag,
+  --
+  --     bus_wreq_valid => bus_result_wreq_valid,
+  --     bus_wreq_ready => bus_result_wreq_ready,
+  --     bus_wreq_addr  => bus_result_wreq_addr,
+  --     bus_wreq_len   => bus_result_wreq_len,
+  --
+  --     bus_wdat_valid  => bus_result_wdat_valid,
+  --     bus_wdat_ready  => bus_result_wdat_ready,
+  --     bus_wdat_data   => bus_result_wdat_data,
+  --     bus_wdat_strobe => bus_result_wdat_strobe,
+  --     bus_wdat_last   => bus_result_wdat_last,
+  --
+  --     in_valid  => in_result_valid,
+  --     in_ready  => in_result_ready,
+  --     in_last   => in_result_last,
+  --     in_dvalid => in_result_dvalid,
+  --     in_data   => in_result_data
+  --     );
 
   -----------------------------------------------------------------------------
   -- Stream Conversion
@@ -652,6 +657,7 @@ begin
 
       busy <= r_busy;
       done <= r_done;
+      result <= r_result;
 
       -- Offset Buffer Addresses
       r_element1_off_hi <= element1_off_hi;
@@ -698,31 +704,35 @@ begin
     cw_v := cw_r;
 
     -- ColumnReader Inputs:
-    cw_v.str_result_elem_in := str_result_elem_in;
+    -- cw_v.str_result_elem_in := str_result_elem_in;
 
     -- Default ColumnWriter input
-    cw_v.str_result_elem_out.data.valid  := cw_r.str_result_elem_out.data.valid;
-    cw_v.str_result_elem_out.data.dvalid := cw_r.str_result_elem_out.data.dvalid;
-    cw_v.str_result_elem_out.data.last   := cw_r.str_result_elem_out.data.last;
-    cw_v.str_result_elem_out.data.data   := cw_r.str_result_elem_out.data.data;
+    -- cw_v.str_result_elem_out.data.valid  := cw_r.str_result_elem_out.data.valid;
+    -- cw_v.str_result_elem_out.data.dvalid := cw_r.str_result_elem_out.data.dvalid;
+    -- cw_v.str_result_elem_out.data.last   := cw_r.str_result_elem_out.data.last;
+    -- cw_v.str_result_elem_out.data.data   := cw_r.str_result_elem_out.data.data;
 
     -- Disable command streams by default
-    o.cmd.valid := '0';
-    o.unl.ready := '0';
+    -- o.cmd.valid := '0';
+    -- o.unl.ready := '0';
 
     -- Values buffer
-    o.cmd.ctrl(BUS_ADDR_WIDTH-1 downto 0) := r_result_data_hi & r_result_data_lo;
+    -- o.cmd.ctrl(BUS_ADDR_WIDTH-1 downto 0) := r_result_data_hi & r_result_data_lo;
 
-    o.cmd.tag := (0 => '1', others => '0');
+    -- o.cmd.tag := (0 => '1', others => '0');
 
     -- Reset start is low by default.
-    cw_v.cs.reset_start := '0';
+    -- cw_v.cs.reset_start := '0';
+
+    result_unlock_valid <= '0'; -- TEMP: writer removed!
+    result_write <= (others => '0'); -- TEMP: writer removed!
+    result_write_valid <= '0';
 
     case cw_r.state is
       when IDLE =>
         re.outfifo.c.rd_en <= '0';
         if control_start = '1' then
-          cw_v.cs.reset_start := '1';
+          -- cw_v.cs.reset_start := '1';
           cw_v.state          := COLUMNWRITE;
           cw_v.cs.busy        := '1';
         end if;
@@ -730,56 +740,63 @@ begin
       when COLUMNWRITE =>
         -- Write in case of valid output FIFO data
         if(re.outfifo.c.empty = '0') then
-          cw_v.str_result_elem_out.data.valid  := '1';
-          cw_v.str_result_elem_out.data.dvalid := '1';
-          cw_v.str_result_elem_out.data.last   := '1';
-          cw_v.str_result_elem_out.data.data   := re.outfifo.dout;
+          -- cw_v.str_result_elem_out.data.valid  := '1';
+          -- cw_v.str_result_elem_out.data.dvalid := '1';
+          -- cw_v.str_result_elem_out.data.last   := '1';
+          -- cw_v.str_result_elem_out.data.data   := re.outfifo.dout;
 
+          result_write <= re.outfifo.dout;
+          result_write_valid <= '1';
           re.outfifo.c.rd_en <= '1';
 
-          o.cmd.firstIdx := slv(cw_v.result_index, VALUES_WIDTH_RESULT);
-          o.cmd.lastIdx  := slv(cw_v.result_index + 1, VALUES_WIDTH_RESULT);
-
-          cw_v.result_index := cw_r.result_index + 1;
+          -- o.cmd.firstIdx := slv(cw_v.result_index, VALUES_WIDTH_RESULT);
+          -- o.cmd.lastIdx  := slv(cw_v.result_index + 1, VALUES_WIDTH_RESULT);
+          --
+          -- cw_v.result_index := cw_r.result_index + 1;
 
           cw_v.state := WAIT_ACCEPT;
         end if;
 
       when WAIT_ACCEPT =>
         re.outfifo.c.rd_en <= '0';
-        if result_cmd_ready = '1' then
-          o.cmd.valid := '1';
+        -- if result_cmd_ready = '1' then
+          -- o.cmd.valid := '1';
 
           -- Command is accepted, wait for unlock.
           cw_v.state := UNLOCK;
-        end if;
+        -- end if;
 
       when UNLOCK =>
-        o.unl.ready := '1';
-        if result_unlock_valid = '1' then
+        -- o.unl.ready := '1';
+        -- if result_unlock_valid = '1' then
+        result_unlock_valid <= '1'; -- TEMP: writer removed!
           cw_v.state   := COLUMNWRITE;
           cw_v.cs.busy := '0';
-        end if;
+        -- end if;
     end case;
 
     -- Registered outputs
     cw_d <= cw_v;
 
     -- Combinatorial outputs
-    result_cmd_valid    <= o.cmd.valid;
-    result_cmd_firstIdx <= o.cmd.firstIdx;
-    result_cmd_lastIdx  <= o.cmd.lastIdx;
-    result_cmd_ctrl     <= o.cmd.ctrl;
-    result_cmd_tag      <= o.cmd.tag;
-
-    result_unlock_ready <= o.unl.ready;
+    -- result_cmd_valid    <= o.cmd.valid;
+    -- result_cmd_firstIdx <= o.cmd.firstIdx;
+    -- result_cmd_lastIdx  <= o.cmd.lastIdx;
+    -- result_cmd_ctrl     <= o.cmd.ctrl;
+    -- result_cmd_tag      <= o.cmd.tag;
+    --
+    -- result_unlock_ready <= o.unl.ready;
   end process;
 
-  result_write_seq : process(clk, r.wed.batches_total, result_unlock_valid) is
+  result_write_seq : process(clk, r.wed.batches_total, result_unlock_valid, result_write_valid) is
     variable result_count : integer range 0 to MAX_BATCHES := 0;
   begin
     if rising_edge(clk) then
       cw_r <= cw_d;
+
+      if(result_write_valid = '1') then
+          r_result <= result_write;
+      end if;
 
       if result_unlock_valid = '1' then
         result_count := result_count + 1;
@@ -791,15 +808,17 @@ begin
       -- Reset
       if reset = '1' then
         cw_r.state          <= IDLE;
-        cw_r.cs.reset_start <= '0';
+        -- cw_r.cs.reset_start <= '0';
         cw_r.cs.busy        <= '0';
         cw_r.cs.done        <= '0';
-        cw_r.result_index   <= 0;
+        -- cw_r.result_index   <= 0;
 
-        cw_r.str_result_elem_out.data.valid  <= '0';
-        cw_r.str_result_elem_out.data.dvalid <= '0';
-        cw_r.str_result_elem_out.data.last   <= '0';
-        cw_r.str_result_elem_out.data.data   <= (others => '0');
+        r_result <= (others => '0');
+
+        -- cw_r.str_result_elem_out.data.valid  <= '0';
+        -- cw_r.str_result_elem_out.data.dvalid <= '0';
+        -- cw_r.str_result_elem_out.data.last   <= '0';
+        -- cw_r.str_result_elem_out.data.data   <= (others => '0');
 
         result_count := 0;
       end if;
@@ -856,6 +875,9 @@ begin
     case r.state is
 
       when LOAD_IDLE =>
+          v.element1_full := '1';
+          v.element2_full := '1';
+
         cr1_v.cs.done        := '0';
         cr1_v.cs.busy        := '0';
         cr1_v.cs.reset_start := '0';
@@ -874,6 +896,9 @@ begin
         end if;
 
       when LOAD_RESET_START =>
+          v.element1_full := '1';
+          v.element2_full := '1';
+
         cr1_v.cs.done := '0';
         cr2_v.cs.done := '0';
 
@@ -891,6 +916,8 @@ begin
 
       -- Request all data
       when LOAD_REQUEST_DATA =>
+          v.element1_full := '1';
+          v.element2_full := '1';
         -- Reset all counters etc...
         v.element1_reads := (others => '0');
         v.element2_reads := (others => '0');
@@ -936,12 +963,18 @@ begin
 
         -- Wait for command accepted
         if cr1_v.command_element.ready = '1' and cr2_v.command_element.ready = '1' then
+        v.element1_full := '0';
+        v.element2_full := '0';
+
           dumpStdOut("Requested posit element array 1: " & integer'image(int(cr1_v.command_element.firstIdx)) & " ... " & integer'image(int(cr1_v.command_element.lastIdx)));
           dumpStdOut("Requested posit element array 2: " & integer'image(int(cr2_v.command_element.firstIdx)) & " ... " & integer'image(int(cr2_v.command_element.lastIdx)));
           v.state := LOAD_LOADX_LOADY;  -- Load reads and elements
         end if;
 
       when LOAD_LOADX_LOADY =>
+          v.element1_full := '0';
+          v.element2_full := '0';
+
         v.element_reads_valid := '0';
 
         cr1_v.cs.done        := '0';
@@ -962,7 +995,7 @@ begin
         cr2_v.str_element_elem_out.posit.ready := '1';
 
         -- Store the vector elements
-        if cr1_v.str_element_elem_in.posit.valid = '1' then
+        if cr1_v.str_element_elem_in.posit.valid = '1' and r.element1_full = '0' then
           v.element1_reads := r.element1_reads + int(cr1_v.str_element_elem_in.posit.count);
           v.element1_wren  := '1';
 
@@ -988,7 +1021,7 @@ begin
           v.element1_data  := (others => '0');
         end if;
 
-        if cr2_v.str_element_elem_in.posit.valid = '1' then
+        if cr2_v.str_element_elem_in.posit.valid = '1' and r.element2_full = '0' then
           v.element2_reads := r.element2_reads + int(cr2_v.str_element_elem_in.posit.count);
           v.element2_wren  := '1';
 
@@ -1016,9 +1049,11 @@ begin
 
         -- If FIFOs are full, process and read in elements again
         if(r.element1_reads >= 2032) then
+            v.element1_full := '1';
           cr1_v.str_element_elem_out.posit.ready := '0';
         end if;
         if(r.element2_reads >= 2032) then
+            v.element2_full := '1';
           cr2_v.str_element_elem_out.posit.ready := '0';
         end if;
 
@@ -1041,6 +1076,9 @@ begin
         end if;
 
       when LOAD_WAIT_LAUNCH_PART =>
+        v.element1_full := '1';
+        v.element2_full := '1';
+
         if(cr1_v.str_element_elem_in.posit.valid = '1') then
           element1_valid := '1';
         end if;
@@ -1058,6 +1096,8 @@ begin
       when LOAD_LAUNCH_PART =>
         element1_valid := '0';
         element2_valid := '0';
+        v.element1_full := '1';
+        v.element2_full := '1';
         if r.filled = '1' then
           if rs.state = SCHED_DONE_PART then
             v.filled         := '0';
@@ -1077,6 +1117,8 @@ begin
 
       -- A new batch is ready to be started
       when LOAD_LAUNCH =>
+          v.element1_full := '1';
+          v.element2_full := '1';
         -- If we told the scheduler to start a new batch
         if r.filled = '1' then
           -- And it's not idle anymore, it's busy with the new batch
@@ -1101,6 +1143,8 @@ begin
 
       -- State where we wait for the scheduler to stop
       when LOAD_DONE =>
+          v.element1_full := '1';
+          v.element2_full := '1';
         if rs.state = SCHED_IDLE then
           cr1_v.cs.done        := '1';
           cr1_v.cs.busy        := '0';

@@ -3,6 +3,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 use work.posit_common.all;
+use work.posit_package.all;
 
 package cu_snap_package is
 
@@ -58,6 +59,8 @@ package cu_snap_package is
     SCHED_PROCESSING,
     SCHED_LAST,
     SCHED_DONE_PART,
+    SCHED_FINAL_ACCUM_COLLECT,
+    SCHED_FINAL_ACCUM,
     SCHED_DONE
     );
 
@@ -73,6 +76,11 @@ package cu_snap_package is
     accum_write        : std_logic;
     accum_write_result : std_logic_vector(31 downto 0);
     element_fifo_rd    : std_logic;
+    accum_fifo_rd      : std_logic;
+    accum_final_cnt    : unsigned(4 downto 0);
+    accum_fifo_data    : value_accum_prod;
+    accum_fifo_wren    : std_logic;
+    accum_fifo_rst     : std_logic;
   end record;
 
   constant cu_sched_empty : cu_sched := (
@@ -85,7 +93,12 @@ package cu_snap_package is
     accum_pass_cnt     => (others => '0'),
     accum_write        => '0',
     accum_write_result => (others => '0'),
-    element_fifo_rd    => '0'
+    element_fifo_rd    => '0',
+    accum_fifo_rd      => '0',
+    accum_final_cnt    => (others => '0'),
+    accum_fifo_data    => (others => '0'),
+    accum_fifo_wren    => '0',
+    accum_fifo_rst     => '0'
     );
 
   type fifo_controls is record
@@ -115,21 +128,14 @@ package cu_snap_package is
     c    : fifo_controls;
   end record;
 
-  type accumfifo_es2_item is record
-    din  : std_logic_vector(POSIT_SERIALIZED_WIDTH_PRODUCT_ES2 - 1 downto 0);
-    dout : std_logic_vector(POSIT_SERIALIZED_WIDTH_PRODUCT_ES2 - 1 downto 0);
-    c    : fifo_controls;
-  end record;
-
-  type accumfifo_es3_item is record
-    din  : std_logic_vector(POSIT_SERIALIZED_WIDTH_PRODUCT_ES3 - 1 downto 0);
-    dout : std_logic_vector(POSIT_SERIALIZED_WIDTH_PRODUCT_ES3 - 1 downto 0);
-    c    : fifo_controls;
-  end record;
-
   type elementfifo_item is record
     din  : std_logic_vector(255 downto 0);
     dout : std_logic_vector(31 downto 0);
+    c    : fifo_controls;
+  end record;
+
+  type accum_fifo_item is record
+    dout : value_accum_prod;
     c    : fifo_controls;
   end record;
 
@@ -138,6 +144,8 @@ package cu_snap_package is
 
     element1_fifo : elementfifo_item;
     element2_fifo : elementfifo_item;
+
+    accum_fifo : accum_fifo_item;
 
     clk_kernel : std_logic;
   end record;

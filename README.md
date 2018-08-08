@@ -1,1 +1,1 @@
-# posit_dot
+# Posit Dot Product Accelerator with Apache Arrow & CAPI SNAP

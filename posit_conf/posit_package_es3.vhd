@@ -31,6 +31,8 @@ package posit_package is
   subtype value_accum_prod is std_logic_vector(POSIT_SERIALIZED_WIDTH_ACCUM_PROD_ES3-1 downto 0);
   constant value_accum_prod_empty : value_accum_prod := (POSIT_SERIALIZED_WIDTH_ACCUM_PROD_ES3-1 downto 1 => '0', others => '1');
 
+  constant POSIT_SERIALIZED_WIDTH_ACCUM_PROD : natural := POSIT_SERIALIZED_WIDTH_ACCUM_PROD_ES3;
+
   function prod2val (a  : in value_product) return value;
   function sum2val (a   : in value_sum) return value;
   function accum2val (a : in value_accum) return value;

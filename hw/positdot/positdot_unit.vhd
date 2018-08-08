@@ -109,27 +109,21 @@ entity positdot_unit is
 end positdot_unit;
 
 architecture positdot_unit of positdot_unit is
-  constant ADD_CYCLES   : natural := 4;
-  constant MUL_CYCLES   : natural := 4;
-  constant ACCUM_CYCLES : natural := 16;
-
   signal reset : std_logic;
 
   -- Register on all ports to ease timing
-  signal r_control_reset : std_logic;
-  signal r_control_start : std_logic;
-  signal r_reset_start   : std_logic;
-  signal r_busy          : std_logic;
-  signal r_done          : std_logic;
+  signal r_control_reset        : std_logic;
+  signal r_control_start        : std_logic;
+  signal r_reset_start          : std_logic;
+  signal r_busy                 : std_logic;
+  signal r_done                 : std_logic;
   signal r_result, result_write : std_logic_vector(REG_WIDTH-1 downto 0);
-  signal result_write_valid : std_logic;
+  signal result_write_valid     : std_logic;
 
-  signal r_element1_off_hi                        : std_logic_vector(REG_WIDTH - 1 downto 0);
-  signal r_element1_off_lo                        : std_logic_vector(REG_WIDTH - 1 downto 0);
+  signal r_element1_off_hi, r_element1_off_lo     : std_logic_vector(REG_WIDTH - 1 downto 0);
   signal r_element1_posit_hi, r_element1_posit_lo : std_logic_vector(REG_WIDTH - 1 downto 0);
 
-  signal r_element2_off_hi                        : std_logic_vector(REG_WIDTH - 1 downto 0);
-  signal r_element2_off_lo                        : std_logic_vector(REG_WIDTH - 1 downto 0);
+  signal r_element2_off_hi, r_element2_off_lo     : std_logic_vector(REG_WIDTH - 1 downto 0);
   signal r_element2_posit_hi, r_element2_posit_lo : std_logic_vector(REG_WIDTH - 1 downto 0);
 
   signal r_result_data_hi, r_result_data_lo : std_logic_vector(REG_WIDTH - 1 downto 0);
@@ -150,17 +144,11 @@ architecture positdot_unit of positdot_unit is
   constant VALUES_COUNT_WIDTH_ELEMENT : natural := log2ceil(VALUES_PER_CYCLE_ELEMENT) + 1;
   constant OUT_DATA_WIDTH_ELEMENT     : natural := INDEX_WIDTH_ELEMENT + VALUES_WIDTH_ELEMENT + VALUES_COUNT_WIDTH_ELEMENT;
 
-  signal out_element1_valid  : std_logic_vector(NUM_STREAMS_ELEMENT - 1 downto 0);
-  signal out_element1_ready  : std_logic_vector(NUM_STREAMS_ELEMENT - 1 downto 0);
-  signal out_element1_last   : std_logic_vector(NUM_STREAMS_ELEMENT - 1 downto 0);
-  signal out_element1_dvalid : std_logic_vector(NUM_STREAMS_ELEMENT - 1 downto 0);
-  signal out_element1_data   : std_logic_vector(OUT_DATA_WIDTH_ELEMENT - 1 downto 0);
-
-  signal out_element2_valid  : std_logic_vector(NUM_STREAMS_ELEMENT - 1 downto 0);
-  signal out_element2_ready  : std_logic_vector(NUM_STREAMS_ELEMENT - 1 downto 0);
-  signal out_element2_last   : std_logic_vector(NUM_STREAMS_ELEMENT - 1 downto 0);
-  signal out_element2_dvalid : std_logic_vector(NUM_STREAMS_ELEMENT - 1 downto 0);
-  signal out_element2_data   : std_logic_vector(OUT_DATA_WIDTH_ELEMENT - 1 downto 0);
+  signal out_element1_valid, out_element2_valid   : std_logic_vector(NUM_STREAMS_ELEMENT - 1 downto 0);
+  signal out_element1_ready, out_element2_ready   : std_logic_vector(NUM_STREAMS_ELEMENT - 1 downto 0);
+  signal out_element1_last, out_element2_last     : std_logic_vector(NUM_STREAMS_ELEMENT - 1 downto 0);
+  signal out_element1_dvalid, out_element2_dvalid : std_logic_vector(NUM_STREAMS_ELEMENT - 1 downto 0);
+  signal out_element1_data, out_element2_data     : std_logic_vector(OUT_DATA_WIDTH_ELEMENT - 1 downto 0);
 
   type len_stream_in_t is record
     valid  : std_logic;
@@ -241,99 +229,6 @@ architecture positdot_unit of positdot_unit is
   signal cmd_element1_ready, cmd_element2_ready : std_logic;
 
   -----------------------------------------------------------------------------
-  -- RESULT STREAMS
-  -----------------------------------------------------------------------------
-  -----------------------------------------------------------------------------
-  -- Result ColumnWriter Interface
-  -----------------------------------------------------------------------------
-  constant INDEX_WIDTH_RESULT        : natural := 32;
-  constant VALUE_ELEM_WIDTH_RESULT   : natural := 32;
-  constant VALUES_PER_CYCLE_RESULT   : natural := 1;
-  constant NUM_STREAMS_RESULT        : natural := 1;  -- data stream
-  constant VALUES_WIDTH_RESULT       : natural := VALUE_ELEM_WIDTH_RESULT * VALUES_PER_CYCLE_RESULT;
-  constant VALUES_COUNT_WIDTH_RESULT : natural := log2ceil(VALUES_PER_CYCLE_RESULT) + 1;
-  constant IN_DATA_WIDTH_RESULT      : natural := INDEX_WIDTH_RESULT + VALUES_WIDTH_RESULT + VALUES_COUNT_WIDTH_RESULT;
-  constant TAG_WIDTH_RESULT          : natural := 1;
-
-  signal in_result_valid  : std_logic_vector(NUM_STREAMS_RESULT - 1 downto 0);
-  signal in_result_ready  : std_logic_vector(NUM_STREAMS_RESULT - 1 downto 0);
-  signal in_result_last   : std_logic_vector(NUM_STREAMS_RESULT - 1 downto 0);
-  signal in_result_dvalid : std_logic_vector(NUM_STREAMS_RESULT - 1 downto 0);
-  signal in_result_data   : std_logic_vector(VALUES_WIDTH_RESULT - 1 downto 0);
-
-  -- Command Stream
-  type command_result_t is record
-    valid    : std_logic;
-    tag      : std_logic_vector(TAG_WIDTH_RESULT - 1 downto 0);
-    firstIdx : std_logic_vector(INDEX_WIDTH_RESULT - 1 downto 0);
-    lastIdx  : std_logic_vector(INDEX_WIDTH_RESULT - 1 downto 0);
-    ctrl     : std_logic_vector(BUS_ADDR_WIDTH - 1 downto 0);
-  end record;
-
-  type result_data_stream_out_t is record
-    valid  : std_logic;
-    dvalid : std_logic;
-    last   : std_logic;
-    data   : std_logic_vector(VALUES_WIDTH_RESULT - 1 downto 0);
-  end record;
-
-  type result_data_stream_in_t is record
-    ready : std_logic;
-  end record;
-
-  type str_result_elem_in_t is record
-    data : result_data_stream_in_t;
-  end record;
-
-  type str_result_elem_out_t is record
-    data : result_data_stream_out_t;
-  end record;
-
-  procedure conv_streams_result_out (
-    signal valid               : out std_logic_vector(NUM_STREAMS_RESULT - 1 downto 0);
-    signal dvalid              : out std_logic_vector(NUM_STREAMS_RESULT - 1 downto 0);
-    signal last                : out std_logic_vector(NUM_STREAMS_RESULT - 1 downto 0);
-    signal data                : out std_logic_vector(VALUES_WIDTH_RESULT - 1 downto 0);
-    signal str_result_elem_out : in  str_result_elem_out_t
-    ) is
-  begin
-    valid(0)                               <= str_result_elem_out.data.valid;
-    dvalid(0)                              <= str_result_elem_out.data.dvalid;
-    last(0)                                <= str_result_elem_out.data.last;
-    data(VALUES_WIDTH_RESULT - 1 downto 0) <= str_result_elem_out.data.data;
-  end procedure;
-
-  procedure conv_streams_result_in (
-    signal str_result_elem_in : out str_result_elem_in_t;
-    signal in_ready           : in  std_logic_vector(NUM_STREAMS_RESULT - 1 downto 0)
-    ) is
-  begin
-    str_result_elem_in.data.ready <= in_ready(0);
-  end procedure;
-
-  type unl_record is record
-    ready : std_logic;
-  end record;
-
-  type out_record is record
-    cmd : command_result_t;
-    unl : unl_record;
-  end record;
-
-  signal str_result_elem_in  : str_result_elem_in_t;
-  signal str_result_elem_out : str_result_elem_out_t;
-
-  signal result_cmd_valid    : std_logic;
-  signal result_cmd_ready    : std_logic;
-  signal result_cmd_firstIdx : std_logic_vector(INDEX_WIDTH_RESULT-1 downto 0);
-  signal result_cmd_lastIdx  : std_logic_vector(INDEX_WIDTH_RESULT-1 downto 0);
-  signal result_cmd_ctrl     : std_logic_vector(BUS_ADDR_WIDTH -1 downto 0);
-  signal result_cmd_tag      : std_logic_vector(TAG_WIDTH_RESULT-1 downto 0);
-  signal result_unlock_valid : std_logic;
-  signal result_unlock_ready : std_logic;
-  signal result_unlock_tag   : std_logic_vector(TAG_WIDTH_RESULT-1 downto 0);
-
-  -----------------------------------------------------------------------------
   -- UserCore
   -----------------------------------------------------------------------------
   type state_t is (STATE_IDLE, STATE_RESET_START, STATE_REQUEST, STATE_BUSY, STATE_DONE);
@@ -362,16 +257,8 @@ architecture positdot_unit of positdot_unit is
   type state_result_t is (IDLE, COLUMNWRITE, WAIT_ACCEPT, UNLOCK);
 
   type reg_result is record
-    state : state_result_t;
-    cs    : cs_t;
-
-    result_index : integer;
-
-    command_result : command_result_t;
-
-    str_result_elem_out : str_result_elem_out_t;
-    str_result_elem_in  : str_result_elem_in_t;
-
+    state       : state_result_t;
+    cs          : cs_t;
     reset_units : std_logic;
   end record;
 
@@ -382,15 +269,18 @@ architecture positdot_unit of positdot_unit is
   signal q, r   : cu_int;
   signal re     : cu_ext;
 
-  signal el1_posit_in, el2_posit_in                              : std_logic_vector(POSIT_NBITS-1 downto 0);
-  signal element1, element2                                      : value;
-  signal el1_el2_valid                                           : std_logic;
-  signal product                                                 : value_product;
-  signal accum_result_raw                                        : value_accum_prod;
-  signal accum_result                                            : std_logic_vector(POSIT_NBITS-1 downto 0);
-  signal accum_inf, accum_zero                                   : std_logic;
-  signal posit_done_mul, posit_done_accum, posit_truncated_accum : std_logic;
-  signal reset_accum                                             : std_logic;
+  signal el1_posit_in, el2_posit_in                               : std_logic_vector(POSIT_NBITS-1 downto 0);
+  signal element1, element2                                       : value;
+  signal el1_el2_valid                                            : std_logic;
+  signal product                                                  : value_product;
+  signal accum_result_raw, accum_final_result_raw                 : value_accum_prod;
+  signal accum_result                                             : std_logic_vector(POSIT_NBITS-1 downto 0);
+  signal accum_inf                                                : std_logic;
+  signal accum_zero                                               : std_logic;
+  signal posit_done_mul, posit_done_accum, posit_done_accum_final : std_logic;
+  signal posit_truncated_accum, posit_truncated_accum_final       : std_logic;
+  signal reset_accum                                              : std_logic;
+  signal result_unlock_valid                                      : std_logic;
 begin
   reset <= not reset_n;
 
@@ -565,73 +455,6 @@ begin
   conv_streams_element_in(out_element2_valid, out_element2_dvalid, out_element2_last, out_element2_data, str_element2_elem_in);
   conv_streams_element_out(str_element2_elem_out, out_element2_ready);
 
-  -----------------------------------------------------------------------------
-  -----------------------------------------------------------------------------
-  -- RESULTS
-  -----------------------------------------------------------------------------
-  -----------------------------------------------------------------------------
-  -----------------------------------------------------------------------------
-  -- ColumnWriter
-  -----------------------------------------------------------------------------
-  -- result_cw : ColumnWriter
-  --   generic map (
-  --     BUS_ADDR_WIDTH     => BUS_ADDR_WIDTH,
-  --     BUS_LEN_WIDTH      => BUS_LEN_WIDTH,
-  --     BUS_DATA_WIDTH     => BUS_DATA_WIDTH,
-  --     BUS_STROBE_WIDTH   => BUS_DATA_WIDTH/8,
-  --     BUS_BURST_STEP_LEN => BUS_BURST_STEP_LEN,
-  --     BUS_BURST_MAX_LEN  => BUS_BURST_MAX_LEN,
-  --     INDEX_WIDTH        => INDEX_WIDTH_RESULT,
-  --     CFG                => "prim(32)",
-  --     CMD_TAG_ENABLE     => true,
-  --     CMD_TAG_WIDTH      => TAG_WIDTH_RESULT
-  --     )
-  --   port map (
-  --     bus_clk   => clk,
-  --     bus_reset => reset,
-  --     acc_clk   => clk,
-  --     acc_reset => reset,
-  --
-  --     cmd_valid    => result_cmd_valid,
-  --     cmd_ready    => result_cmd_ready,
-  --     cmd_firstIdx => result_cmd_firstIdx,
-  --     cmd_lastIdx  => result_cmd_lastIdx,
-  --     cmd_ctrl     => result_cmd_ctrl,
-  --     cmd_tag      => result_cmd_tag,
-  --
-  --     unlock_valid => result_unlock_valid,
-  --     unlock_ready => result_unlock_ready,
-  --     unlock_tag   => result_unlock_tag,
-  --
-  --     bus_wreq_valid => bus_result_wreq_valid,
-  --     bus_wreq_ready => bus_result_wreq_ready,
-  --     bus_wreq_addr  => bus_result_wreq_addr,
-  --     bus_wreq_len   => bus_result_wreq_len,
-  --
-  --     bus_wdat_valid  => bus_result_wdat_valid,
-  --     bus_wdat_ready  => bus_result_wdat_ready,
-  --     bus_wdat_data   => bus_result_wdat_data,
-  --     bus_wdat_strobe => bus_result_wdat_strobe,
-  --     bus_wdat_last   => bus_result_wdat_last,
-  --
-  --     in_valid  => in_result_valid,
-  --     in_ready  => in_result_ready,
-  --     in_last   => in_result_last,
-  --     in_dvalid => in_result_dvalid,
-  --     in_data   => in_result_data
-  --     );
-
-  -----------------------------------------------------------------------------
-  -- Stream Conversion
-  -----------------------------------------------------------------------------
-  -- Output
-  str_result_elem_out <= cw_d.str_result_elem_out;
-
-  -- Convert the stream inputs and outputs to something readable
-  conv_streams_result_out(in_result_valid, in_result_dvalid, in_result_last, in_result_data, str_result_elem_out);
-  conv_streams_result_in(str_result_elem_in, in_result_ready);
-
-
 ---------------------------------------------------------------------------------------------------
 --    ____        _       _       _                     _
 --   |  _ \      | |     | |     | |                   | |
@@ -655,8 +478,8 @@ begin
       r_control_start <= control_start;
       reset_start     <= r_reset_start;
 
-      busy <= r_busy;
-      done <= r_done;
+      busy   <= r_busy;
+      done   <= r_done;
       result <= r_result;
 
       -- Offset Buffer Addresses
@@ -690,102 +513,50 @@ begin
 
   result_write_comb : process(cw_r,
                               re,
-                              str_result_elem_in,
                               control_start,
                               r_result_data_hi, r_result_data_lo,
-                              result_cmd_ready,
-                              result_unlock_valid, result_unlock_tag)
+                              result_unlock_valid)
 
-    variable cw_v         : reg_result;
-    variable o            : out_record;
-    variable score_line   : line;
-    variable result_index : integer;
+    variable cw_v : reg_result;
   begin
     cw_v := cw_r;
 
-    -- ColumnReader Inputs:
-    -- cw_v.str_result_elem_in := str_result_elem_in;
-
-    -- Default ColumnWriter input
-    -- cw_v.str_result_elem_out.data.valid  := cw_r.str_result_elem_out.data.valid;
-    -- cw_v.str_result_elem_out.data.dvalid := cw_r.str_result_elem_out.data.dvalid;
-    -- cw_v.str_result_elem_out.data.last   := cw_r.str_result_elem_out.data.last;
-    -- cw_v.str_result_elem_out.data.data   := cw_r.str_result_elem_out.data.data;
-
-    -- Disable command streams by default
-    -- o.cmd.valid := '0';
-    -- o.unl.ready := '0';
-
-    -- Values buffer
-    -- o.cmd.ctrl(BUS_ADDR_WIDTH-1 downto 0) := r_result_data_hi & r_result_data_lo;
-
-    -- o.cmd.tag := (0 => '1', others => '0');
-
-    -- Reset start is low by default.
-    -- cw_v.cs.reset_start := '0';
-
-    result_unlock_valid <= '0'; -- TEMP: writer removed!
-    result_write <= (others => '0'); -- TEMP: writer removed!
-    result_write_valid <= '0';
+    result_unlock_valid <= '0';
+    result_write        <= (others => '0');
+    result_write_valid  <= '0';
 
     case cw_r.state is
       when IDLE =>
         re.outfifo.c.rd_en <= '0';
         if control_start = '1' then
           -- cw_v.cs.reset_start := '1';
-          cw_v.state          := COLUMNWRITE;
-          cw_v.cs.busy        := '1';
+          cw_v.state   := COLUMNWRITE;
+          cw_v.cs.busy := '1';
         end if;
 
       when COLUMNWRITE =>
         -- Write in case of valid output FIFO data
         if(re.outfifo.c.empty = '0') then
-          -- cw_v.str_result_elem_out.data.valid  := '1';
-          -- cw_v.str_result_elem_out.data.dvalid := '1';
-          -- cw_v.str_result_elem_out.data.last   := '1';
-          -- cw_v.str_result_elem_out.data.data   := re.outfifo.dout;
-
-          result_write <= re.outfifo.dout;
+          result_write       <= re.outfifo.dout;
           result_write_valid <= '1';
           re.outfifo.c.rd_en <= '1';
-
-          -- o.cmd.firstIdx := slv(cw_v.result_index, VALUES_WIDTH_RESULT);
-          -- o.cmd.lastIdx  := slv(cw_v.result_index + 1, VALUES_WIDTH_RESULT);
-          --
-          -- cw_v.result_index := cw_r.result_index + 1;
 
           cw_v.state := WAIT_ACCEPT;
         end if;
 
       when WAIT_ACCEPT =>
         re.outfifo.c.rd_en <= '0';
-        -- if result_cmd_ready = '1' then
-          -- o.cmd.valid := '1';
-
-          -- Command is accepted, wait for unlock.
-          cw_v.state := UNLOCK;
-        -- end if;
+        -- Command is accepted, wait for unlock.
+        cw_v.state         := UNLOCK;
 
       when UNLOCK =>
-        -- o.unl.ready := '1';
-        -- if result_unlock_valid = '1' then
-        result_unlock_valid <= '1'; -- TEMP: writer removed!
-          cw_v.state   := COLUMNWRITE;
-          cw_v.cs.busy := '0';
-        -- end if;
+        result_unlock_valid <= '1';
+        cw_v.state          := COLUMNWRITE;
+        cw_v.cs.busy        := '0';
     end case;
 
     -- Registered outputs
     cw_d <= cw_v;
-
-    -- Combinatorial outputs
-    -- result_cmd_valid    <= o.cmd.valid;
-    -- result_cmd_firstIdx <= o.cmd.firstIdx;
-    -- result_cmd_lastIdx  <= o.cmd.lastIdx;
-    -- result_cmd_ctrl     <= o.cmd.ctrl;
-    -- result_cmd_tag      <= o.cmd.tag;
-    --
-    -- result_unlock_ready <= o.unl.ready;
   end process;
 
   result_write_seq : process(clk, r.wed.batches_total, result_unlock_valid, result_write_valid) is
@@ -795,30 +566,23 @@ begin
       cw_r <= cw_d;
 
       if(result_write_valid = '1') then
-          r_result <= result_write;
+        r_result <= result_write;
       end if;
 
       if result_unlock_valid = '1' then
         result_count := result_count + 1;
-        if(result_count = to_integer(r.wed.batches_total)) then  -- TODO how many results?
+        if(result_count = to_integer(r.wed.batches_total)) then
           cw_r.cs.done <= '1';
         end if;
       end if;
 
       -- Reset
       if reset = '1' then
-        cw_r.state          <= IDLE;
-        -- cw_r.cs.reset_start <= '0';
-        cw_r.cs.busy        <= '0';
-        cw_r.cs.done        <= '0';
-        -- cw_r.result_index   <= 0;
+        cw_r.state   <= IDLE;
+        cw_r.cs.busy <= '0';
+        cw_r.cs.done <= '0';
 
         r_result <= (others => '0');
-
-        -- cw_r.str_result_elem_out.data.valid  <= '0';
-        -- cw_r.str_result_elem_out.data.dvalid <= '0';
-        -- cw_r.str_result_elem_out.data.last   <= '0';
-        -- cw_r.str_result_elem_out.data.data   <= (others => '0');
 
         result_count := 0;
       end if;
@@ -875,8 +639,8 @@ begin
     case r.state is
 
       when LOAD_IDLE =>
-          v.element1_full := '1';
-          v.element2_full := '1';
+        v.element1_full := '1';
+        v.element2_full := '1';
 
         cr1_v.cs.done        := '0';
         cr1_v.cs.busy        := '0';
@@ -896,8 +660,8 @@ begin
         end if;
 
       when LOAD_RESET_START =>
-          v.element1_full := '1';
-          v.element2_full := '1';
+        v.element1_full := '1';
+        v.element2_full := '1';
 
         cr1_v.cs.done := '0';
         cr2_v.cs.done := '0';
@@ -916,8 +680,8 @@ begin
 
       -- Request all data
       when LOAD_REQUEST_DATA =>
-          v.element1_full := '1';
-          v.element2_full := '1';
+        v.element1_full  := '1';
+        v.element2_full  := '1';
         -- Reset all counters etc...
         v.element1_reads := (others => '0');
         v.element2_reads := (others => '0');
@@ -963,8 +727,8 @@ begin
 
         -- Wait for command accepted
         if cr1_v.command_element.ready = '1' and cr2_v.command_element.ready = '1' then
-        v.element1_full := '0';
-        v.element2_full := '0';
+          v.element1_full := '0';
+          v.element2_full := '0';
 
           dumpStdOut("Requested posit element array 1: " & integer'image(int(cr1_v.command_element.firstIdx)) & " ... " & integer'image(int(cr1_v.command_element.lastIdx)));
           dumpStdOut("Requested posit element array 2: " & integer'image(int(cr2_v.command_element.firstIdx)) & " ... " & integer'image(int(cr2_v.command_element.lastIdx)));
@@ -972,8 +736,8 @@ begin
         end if;
 
       when LOAD_LOADX_LOADY =>
-          v.element1_full := '0';
-          v.element2_full := '0';
+        v.element1_full := '0';
+        v.element2_full := '0';
 
         v.element_reads_valid := '0';
 
@@ -1049,11 +813,11 @@ begin
 
         -- If FIFOs are full, process and read in elements again
         if(r.element1_reads >= 2032) then
-            v.element1_full := '1';
+          v.element1_full                        := '1';
           cr1_v.str_element_elem_out.posit.ready := '0';
         end if;
         if(r.element2_reads >= 2032) then
-            v.element2_full := '1';
+          v.element2_full                        := '1';
           cr2_v.str_element_elem_out.posit.ready := '0';
         end if;
 
@@ -1094,8 +858,8 @@ begin
         end if;
 
       when LOAD_LAUNCH_PART =>
-        element1_valid := '0';
-        element2_valid := '0';
+        element1_valid  := '0';
+        element2_valid  := '0';
         v.element1_full := '1';
         v.element2_full := '1';
         if r.filled = '1' then
@@ -1117,8 +881,8 @@ begin
 
       -- A new batch is ready to be started
       when LOAD_LAUNCH =>
-          v.element1_full := '1';
-          v.element2_full := '1';
+        v.element1_full := '1';
+        v.element2_full := '1';
         -- If we told the scheduler to start a new batch
         if r.filled = '1' then
           -- And it's not idle anymore, it's busy with the new batch
@@ -1143,8 +907,8 @@ begin
 
       -- State where we wait for the scheduler to stop
       when LOAD_DONE =>
-          v.element1_full := '1';
-          v.element2_full := '1';
+        v.element1_full := '1';
+        v.element2_full := '1';
         if rs.state = SCHED_IDLE then
           cr1_v.cs.done        := '1';
           cr1_v.cs.busy        := '0';
@@ -1215,6 +979,42 @@ begin
     );
   re.element2_fifo.c.wr_en <= r.element2_wren;
 
+  gen_accum_fifo_es2 : if POSIT_ES = 2 generate
+    accum_fifo : accum_fifo_es2 port map (
+      rst       => rs.accum_fifo_rst,
+      wr_clk    => re.clk_kernel,
+      rd_clk    => re.clk_kernel,
+      din       => rs.accum_fifo_data,
+      dout      => re.accum_fifo.dout,
+      wr_en     => re.accum_fifo.c.wr_en,
+      rd_en     => re.accum_fifo.c.rd_en,
+      full      => re.accum_fifo.c.full,
+      wr_ack    => re.accum_fifo.c.wr_ack,
+      overflow  => re.accum_fifo.c.overflow,
+      empty     => re.accum_fifo.c.empty,
+      valid     => re.accum_fifo.c.valid,
+      underflow => re.accum_fifo.c.underflow
+      );
+  end generate;
+  gen_accum_fifo_es3 : if POSIT_ES = 3 generate
+    accum_fifo : accum_fifo_es3 port map (
+      rst       => rs.accum_fifo_rst,
+      wr_clk    => re.clk_kernel,
+      rd_clk    => re.clk_kernel,
+      din       => rs.accum_fifo_data,
+      dout      => re.accum_fifo.dout,
+      wr_en     => re.accum_fifo.c.wr_en,
+      rd_en     => re.accum_fifo.c.rd_en,
+      full      => re.accum_fifo.c.full,
+      wr_ack    => re.accum_fifo.c.wr_ack,
+      overflow  => re.accum_fifo.c.overflow,
+      empty     => re.accum_fifo.c.empty,
+      valid     => re.accum_fifo.c.valid,
+      underflow => re.accum_fifo.c.underflow
+      );
+  end generate;
+  re.accum_fifo.c.wr_en <= rs.accum_fifo_wren;
+
   ---------------------------------------------------------------------------------------------------
   --   _____   _                  _
   --  / ____| | |                | |
@@ -1270,7 +1070,7 @@ begin
   --   |_____/ \___|_| |_|\___|\__,_|\__,_|_|\___|_|
   ---------------------------------------------------------------------------------------------------
 
-  scheduler_comb : process(r, re, rs, accum_result, posit_done_accum)
+  scheduler_comb : process(r, re, rs, accum_result, posit_done_accum, posit_done_accum_final)
     variable vs : cu_sched;
   begin
     vs := rs;
@@ -1278,6 +1078,10 @@ begin
     vs.accum_write        := '0';
     vs.accum_write_result := (others => '0');
     vs.element_fifo_rd    := '0';
+
+    vs.accum_final_cnt := (others => '0');
+    vs.accum_fifo_wren := '0';
+    vs.accum_fifo_rd   := '0';
 
     vs.accum_cnt := rs.accum_cnt + 1;
     if(rs.accum_cnt = 15) then
@@ -1310,41 +1114,62 @@ begin
         -- Unset the startflag
         vs.startflag := '0';
 
-        if(rs.accum_cnt = 13) then
-          if(re.element1_fifo.c.empty = '0' and re.element2_fifo.c.empty = '0') then
-            vs.element_fifo_rd := '1';
-          end if;
+        if(re.element1_fifo.c.empty = '0' and re.element2_fifo.c.empty = '0') then
+          vs.element_fifo_rd := '1';
         end if;
 
-        if(rs.accum_cnt = 4) then
-          if(posit_done_accum = '1') then
-            vs.accum_pass_cnt := rs.accum_pass_cnt + 1;
-            dumpStdOut("PASS " & integer'image(int(vs.accum_pass_cnt)));
+        if(posit_done_accum = '1') then
+          vs.accum_pass_cnt := rs.accum_pass_cnt + 1;
+          dumpStdOut("PASS " & integer'image(int(vs.accum_pass_cnt)));
 
-            if((re.element1_fifo.c.empty = '1' or re.element2_fifo.c.empty = '1') and rs.startflag = '0') then
-              vs.valid := '0';          -- Next inputs are not valid anymore
-              vs.state := SCHED_LAST;
-            end if;
+          if((re.element1_fifo.c.empty = '1' or re.element2_fifo.c.empty = '1') and rs.startflag = '0') then
+            vs.valid := '0';            -- Next inputs are not valid anymore
+            vs.state := SCHED_LAST;
           end if;
         end if;
 
       when SCHED_LAST =>
-        if(rs.accum_cnt = 4 and posit_done_accum = '1') then
+        if(posit_done_accum = '0') then
           vs.accum_pass_cnt := rs.accum_pass_cnt + 1;
           dumpStdOut("PASS " & integer'image(int(vs.accum_pass_cnt)));
 
           if(r.state = LOAD_LAUNCH_PART) then
             vs.state := SCHED_DONE_PART;
           else
-            vs.accum_write        := '1';
-            vs.accum_write_result := accum_result;
-
-            vs.state := SCHED_DONE;
+            -- Aggregate all accumulation results
+            vs.state := SCHED_FINAL_ACCUM_COLLECT;
           end if;
         end if;
 
       when SCHED_DONE_PART =>
         vs.state := SCHED_IDLE;
+
+      when SCHED_FINAL_ACCUM_COLLECT =>
+        -- Collect the accumulation results
+        if rs.accum_final_cnt = 16 then
+          -- If we collected everything, accumulate the accumulation results
+          vs.state := SCHED_FINAL_ACCUM;
+        else
+          vs.accum_fifo_wren := '1';
+          vs.accum_fifo_data := accum_result_raw;
+          vs.accum_final_cnt := rs.accum_final_cnt + 1;
+        end if;
+
+      when SCHED_FINAL_ACCUM =>
+        -- Aggregate all accumulation results
+        vs.accum_final_cnt := rs.accum_final_cnt;
+        if(rs.accum_cnt = 13) then
+          vs.accum_final_cnt := rs.accum_final_cnt + 1;
+          if(re.accum_fifo.c.empty = '0') then
+            vs.accum_fifo_rd := '1';
+          end if;
+        end if;
+
+        if vs.accum_final_cnt = 17 and posit_done_accum_final = '1' then
+          vs.accum_write        := '1';
+          vs.accum_write_result := accum_result;
+          vs.state              := SCHED_DONE;
+        end if;
 
       when SCHED_DONE =>
         vs.accum_cnt := (others => '0');
@@ -1372,6 +1197,7 @@ begin
 
   re.element1_fifo.c.rd_en <= rs.element_fifo_rd;
   re.element2_fifo.c.rd_en <= rs.element_fifo_rd;
+  re.accum_fifo.c.rd_en    <= rs.accum_fifo_rd;
 
   ---------------------------------------------------------------------------------------------------
   --  _____                _   _       _    _           _   _
@@ -1382,7 +1208,7 @@ begin
   -- |_|     \___/  |___/ |_|  \__|    \____/  |_| |_| |_|  \__| |___/
   ---------------------------------------------------------------------------------------------------
 
-  reset_accum <= reset;                 -- TODO Laurens
+  reset_accum <= reset;
 
   el1_posit_in <= re.element1_fifo.dout when re.element1_fifo.c.valid = '1' else x"00000000";
   el2_posit_in <= re.element2_fifo.dout when re.element2_fifo.c.valid = '1' else x"00000000";
@@ -1461,10 +1287,34 @@ begin
       );
   end generate;
 
+  -- FINAL ACCUMULATION
+  gen_accum_final_es2 : if POSIT_ES = 2 generate
+    posit_accum_final_es2_inst : positaccum_accumprod_16_raw port map (
+      clk       => re.clk_kernel,
+      rst       => reset_accum,
+      in1       => re.accum_fifo.dout,
+      start     => re.accum_fifo.c.valid,
+      result    => accum_final_result_raw,
+      done      => posit_done_accum_final,
+      truncated => posit_truncated_accum_final
+      );
+  end generate;
+  gen_accum_final_es3 : if POSIT_ES = 3 generate
+    posit_accum_final_es3_inst : positaccum_accumprod_16_raw port map (
+      clk       => re.clk_kernel,
+      rst       => reset_accum,
+      in1       => re.accum_fifo.dout,
+      start     => re.accum_fifo.c.valid,
+      result    => accum_final_result_raw,
+      done      => posit_done_accum_final,
+      truncated => posit_truncated_accum_final
+      );
+  end generate;
+
   -- POSIT NORMALIZATION
   gen_normalize_es2 : if POSIT_ES = 2 generate
     posit_normalize_es2_inst : posit_normalize_accum_prod port map (
-      in1       => accum_result_raw,
+      in1       => accum_final_result_raw,
       truncated => posit_truncated_accum,
       result    => accum_result,
       inf       => accum_inf,
@@ -1473,7 +1323,7 @@ begin
   end generate;
   gen_normalize_es3 : if POSIT_ES = 3 generate
     posit_normalize_es3_inst : posit_normalize_accum_prod_es3 port map (
-      in1       => accum_result_raw,
+      in1       => accum_final_result_raw,
       truncated => posit_truncated_accum,
       result    => accum_result,
       inf       => accum_inf,

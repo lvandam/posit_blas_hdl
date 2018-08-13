@@ -37,20 +37,18 @@ entity positdot_unit is
 
     control_reset : in  std_logic;
     control_start : in  std_logic;
-    reset_start   : out std_logic;
 
+    reset_start   : out std_logic;
     busy : out std_logic;
     done : out std_logic;
 
-    -- Elements buffer addresses
+    -- Elements vector 1 buffer addresses
     element1_off_hi, element1_off_lo     : in std_logic_vector(REG_WIDTH-1 downto 0);
     element1_posit_hi, element1_posit_lo : in std_logic_vector(REG_WIDTH-1 downto 0);
+
     -- Elements vector 2 buffer addresses
     element2_off_hi, element2_off_lo     : in std_logic_vector(REG_WIDTH-1 downto 0);
     element2_posit_hi, element2_posit_lo : in std_logic_vector(REG_WIDTH-1 downto 0);
-
-    -- Result buffer address
-    result_data_hi, result_data_lo : in std_logic_vector(REG_WIDTH-1 downto 0);
 
     -- Batch offset (to fetch from Arrow)
     batch_offset : in std_logic_vector(REG_WIDTH-1 downto 0);
@@ -88,23 +86,7 @@ entity positdot_unit is
     bus_element2_rsp_resp  : in  std_logic_vector(1 downto 0);
     bus_element2_rsp_last  : in  std_logic;
     bus_element2_rsp_valid : in  std_logic;
-    bus_element2_rsp_ready : out std_logic;
-
-    ---------------------------------------------------------------------------
-    -- Master bus Result
-    ---------------------------------------------------------------------------
-    -- Write request channel
-    bus_result_wreq_addr  : out std_logic_vector(BUS_ADDR_WIDTH-1 downto 0);
-    bus_result_wreq_len   : out std_logic_vector(BUS_LEN_WIDTH-1 downto 0);
-    bus_result_wreq_valid : out std_logic;
-    bus_result_wreq_ready : in  std_logic;
-
-    -- Write response channel
-    bus_result_wdat_data   : out std_logic_vector(BUS_DATA_WIDTH-1 downto 0);
-    bus_result_wdat_strobe : out std_logic_vector(BUS_DATA_WIDTH/8-1 downto 0);
-    bus_result_wdat_last   : out std_logic;
-    bus_result_wdat_valid  : out std_logic;
-    bus_result_wdat_ready  : in  std_logic
+    bus_element2_rsp_ready : out std_logic
     );
 end positdot_unit;
 
@@ -125,8 +107,6 @@ architecture positdot_unit of positdot_unit is
 
   signal r_element2_off_hi, r_element2_off_lo     : std_logic_vector(REG_WIDTH - 1 downto 0);
   signal r_element2_posit_hi, r_element2_posit_lo : std_logic_vector(REG_WIDTH - 1 downto 0);
-
-  signal r_result_data_hi, r_result_data_lo : std_logic_vector(REG_WIDTH - 1 downto 0);
 
   signal r_batch_offset : std_logic_vector(REG_WIDTH - 1 downto 0);  -- To retrieve the correct data from Arrow columns
 
@@ -496,9 +476,6 @@ begin
       r_element2_posit_hi <= element2_posit_hi;
       r_element2_posit_lo <= element2_posit_lo;
 
-      r_result_data_hi <= result_data_hi;
-      r_result_data_lo <= result_data_lo;
-
       r_batch_offset <= batch_offset;
 
       if control_reset = '1' then
@@ -514,7 +491,6 @@ begin
   result_write_comb : process(cw_r,
                               re,
                               control_start,
-                              r_result_data_hi, r_result_data_lo,
                               result_unlock_valid)
 
     variable cw_v : reg_result;
@@ -639,9 +615,6 @@ begin
     case r.state is
 
       when LOAD_IDLE =>
-        v.element1_full := '1';
-        v.element2_full := '1';
-
         cr1_v.cs.done        := '0';
         cr1_v.cs.busy        := '0';
         cr1_v.cs.reset_start := '0';
@@ -660,9 +633,6 @@ begin
         end if;
 
       when LOAD_RESET_START =>
-        v.element1_full := '1';
-        v.element2_full := '1';
-
         cr1_v.cs.done := '0';
         cr2_v.cs.done := '0';
 
@@ -672,7 +642,7 @@ begin
         cr1_v.reset_units := '0';
         cr2_v.reset_units := '0';
 
-        if control_start = '0' then
+        if control_start = '0' and re.element1_fifo.c.wr_rst_busy = '0' and re.element2_fifo.c.wr_rst_busy = '0' then
           v.wed.batches_total := to_unsigned(1, 32);
           v.wed.batches       := to_unsigned(1, 32);
           v.state             := LOAD_REQUEST_DATA;
@@ -680,8 +650,6 @@ begin
 
       -- Request all data
       when LOAD_REQUEST_DATA =>
-        v.element1_full  := '1';
-        v.element2_full  := '1';
         -- Reset all counters etc...
         v.element1_reads := (others => '0');
         v.element2_reads := (others => '0');
@@ -727,20 +695,12 @@ begin
 
         -- Wait for command accepted
         if cr1_v.command_element.ready = '1' and cr2_v.command_element.ready = '1' then
-          v.element1_full := '0';
-          v.element2_full := '0';
-
           dumpStdOut("Requested posit element array 1: " & integer'image(int(cr1_v.command_element.firstIdx)) & " ... " & integer'image(int(cr1_v.command_element.lastIdx)));
           dumpStdOut("Requested posit element array 2: " & integer'image(int(cr2_v.command_element.firstIdx)) & " ... " & integer'image(int(cr2_v.command_element.lastIdx)));
           v.state := LOAD_LOADX_LOADY;  -- Load reads and elements
         end if;
 
       when LOAD_LOADX_LOADY =>
-        v.element1_full := '0';
-        v.element2_full := '0';
-
-        v.element_reads_valid := '0';
-
         cr1_v.cs.done        := '0';
         cr1_v.cs.busy        := '1';
         cr1_v.cs.reset_start := '0';
@@ -758,10 +718,13 @@ begin
         cr1_v.str_element_elem_out.posit.ready := '1';
         cr2_v.str_element_elem_out.posit.ready := '1';
 
+        -- Store the input vector length
+        if cr1_v.str_element_elem_in.len.valid = '1' then
+          v.element1_reads := u(cr1_v.str_element_elem_in.len.data);
+        end if;
         -- Store the vector elements
-        if cr1_v.str_element_elem_in.posit.valid = '1' and r.element1_full = '0' then
-          v.element1_reads := r.element1_reads + int(cr1_v.str_element_elem_in.posit.count);
-          v.element1_wren  := '1';
+        if cr1_v.str_element_elem_in.posit.valid = '1' and re.element1_fifo.c.prog_full = '0' then
+          v.element1_wren := '1';
 
           case int(cr1_v.str_element_elem_in.posit.count) is
             when 0      => v.element1_data := (others => '0');
@@ -780,14 +743,16 @@ begin
             v.element1_last := '1';
           end if;
         else
-          v.element1_reads := r.element1_reads;
-          v.element1_wren  := '0';
-          v.element1_data  := (others => '0');
+          v.element1_wren := '0';
+          v.element1_data := (others => '0');
         end if;
 
-        if cr2_v.str_element_elem_in.posit.valid = '1' and r.element2_full = '0' then
-          v.element2_reads := r.element2_reads + int(cr2_v.str_element_elem_in.posit.count);
-          v.element2_wren  := '1';
+        -- Store the input vector length
+        if cr2_v.str_element_elem_in.len.valid = '1' then
+          v.element2_reads := u(cr2_v.str_element_elem_in.len.data);
+        end if;
+        if cr2_v.str_element_elem_in.posit.valid = '1' and re.element2_fifo.c.prog_full = '0' then
+          v.element2_wren := '1';
 
           case int(cr2_v.str_element_elem_in.posit.count) is
             when 0      => v.element2_data := (others => '0');
@@ -806,96 +771,39 @@ begin
             v.element2_last := '1';
           end if;
         else
-          v.element2_reads := r.element2_reads;
-          v.element2_wren  := '0';
-          v.element2_data  := (others => '0');
+          v.element2_wren := '0';
+          v.element2_data := (others => '0');
         end if;
 
-        -- If FIFOs are full, process and read in elements again
-        if(r.element1_reads >= 2032) then
-          v.element1_full                        := '1';
+        if(re.element1_fifo.c.prog_full = '1') then
           cr1_v.str_element_elem_out.posit.ready := '0';
+        else
+          cr1_v.str_element_elem_out.posit.ready := '1';
         end if;
-        if(r.element2_reads >= 2032) then
-          v.element2_full                        := '1';
+
+        if(re.element2_fifo.c.prog_full = '1') then
           cr2_v.str_element_elem_out.posit.ready := '0';
+        else
+          cr2_v.str_element_elem_out.posit.ready := '1';
         end if;
 
-        if(r.element1_reads >= 2032 and r.element2_reads >= 2032) then
-          v.wed.batches         := r.wed.batches;
-          v.element_reads_valid := '0';
-          v.element1_last       := '0';
-          v.element2_last       := '0';
-
-          v.state := LOAD_WAIT_LAUNCH_PART;
+        if(re.element1_fifo.c.empty = '0') then
+            v.element1_nonempty_sticky := '1';
+        end if;
+        if(re.element2_fifo.c.empty = '0') then
+            v.element2_nonempty_sticky := '1';
         end if;
 
+        v.wed.batches := r.wed.batches;
         if(r.element1_last = '1' and r.element2_last = '1') then
-          v.wed.batches         := r.wed.batches - 1;
-          v.element_reads_valid := '1';
-          v.element1_last       := '0';
-          v.element2_last       := '0';
+          -- If FIFOs empty: done
+          if(re.element1_fifo.c.empty = '1' and re.element2_fifo.c.empty = '1'
+          and v.element1_nonempty_sticky = '1' and v.element1_nonempty_sticky = '1') then
+            v.wed.batches   := r.wed.batches - 1;
+            v.element1_last := '0';
+            v.element2_last := '0';
 
-          v.state := LOAD_LAUNCH;
-        end if;
-
-      when LOAD_WAIT_LAUNCH_PART =>
-        v.element1_full := '1';
-        v.element2_full := '1';
-
-        if(cr1_v.str_element_elem_in.posit.valid = '1') then
-          element1_valid := '1';
-        end if;
-        if(cr2_v.str_element_elem_in.posit.valid = '1') then
-          element2_valid := '1';
-        end if;
-
-        if(element1_valid = '1' and element2_valid = '1') then
-          v.wed.batches         := r.wed.batches;
-          v.element_reads_valid := '1';
-
-          v.state := LOAD_LAUNCH_PART;
-        end if;
-
-      when LOAD_LAUNCH_PART =>
-        element1_valid  := '0';
-        element2_valid  := '0';
-        v.element1_full := '1';
-        v.element2_full := '1';
-        if r.filled = '1' then
-          if rs.state = SCHED_DONE_PART then
-            v.filled         := '0';
-            v.element1_reads := (others => '0');
-            v.element2_reads := (others => '0');
-
-            -- We can start loading a new batch
-            v.state := LOAD_LOADX_LOADY;
-          end if;
-        end if;
-
-        -- If the scheduler is idle
-        if rs.state = SCHED_IDLE and v.state /= LOAD_LOADX_LOADY and re.element1_fifo.c.empty = '0' and re.element2_fifo.c.empty = '0' then
-          -- We can signal the scheduler to start processing:
-          v.filled := '1';
-        end if;
-
-      -- A new batch is ready to be started
-      when LOAD_LAUNCH =>
-        v.element1_full := '1';
-        v.element2_full := '1';
-        -- If we told the scheduler to start a new batch
-        if r.filled = '1' then
-          -- And it's not idle anymore, it's busy with the new batch
-          if rs.state /= SCHED_IDLE then
-            -- We can reset the filled bit to 0.
-            v.filled := '0';
-            -- If there is still work to do:
-            if v.wed.batches /= 0 then
-              -- We can start loading a new batch
-              v.state := LOAD_REQUEST_DATA;
-            else
-              v.state := LOAD_DONE;
-            end if;
+            v.state := LOAD_DONE;
           end if;
         end if;
 
@@ -907,8 +815,6 @@ begin
 
       -- State where we wait for the scheduler to stop
       when LOAD_DONE =>
-        v.element1_full := '1';
-        v.element2_full := '1';
         if rs.state = SCHED_IDLE then
           cr1_v.cs.done        := '1';
           cr1_v.cs.busy        := '0';
@@ -946,50 +852,55 @@ begin
   ---------------------------------------------------------------------------------------------------
 
   element1_fifo : element_fifo port map (
-    rst       => r.element1_rst,
-    wr_clk    => clk,
-    rd_clk    => re.clk_kernel,
-    din       => r.element1_data(255 downto 0),
-    dout      => re.element1_fifo.dout,
-    wr_en     => re.element1_fifo.c.wr_en,
-    rd_en     => re.element1_fifo.c.rd_en,
-    full      => re.element1_fifo.c.full,
-    wr_ack    => re.element1_fifo.c.wr_ack,
-    overflow  => re.element1_fifo.c.overflow,
-    empty     => re.element1_fifo.c.empty,
-    valid     => re.element1_fifo.c.valid,
-    underflow => re.element1_fifo.c.underflow
+    srst         => reset,
+    wr_clk      => clk,
+    rd_clk      => re.clk_kernel,
+    din         => r.element1_data(255 downto 0),
+    dout        => re.element1_fifo.dout,
+    wr_en       => re.element1_fifo.c.wr_en,
+    rd_en       => rs.element_fifo_rd,
+    full        => re.element1_fifo.c.full,
+    overflow    => re.element1_fifo.c.overflow,
+    empty       => re.element1_fifo.c.empty,
+    valid       => re.element1_fifo.c.valid,
+    underflow   => re.element1_fifo.c.underflow,
+    prog_full   => re.element1_fifo.c.prog_full,
+    prog_empty   => re.element1_fifo.c.prog_empty,
+    wr_rst_busy => re.element1_fifo.c.wr_rst_busy,
+    rd_rst_busy => re.element1_fifo.c.rd_rst_busy
     );
   re.element1_fifo.c.wr_en <= r.element1_wren;
 
   element2_fifo : element_fifo port map (
-    rst       => r.element2_rst,
-    wr_clk    => clk,
-    rd_clk    => re.clk_kernel,
-    din       => r.element2_data(255 downto 0),
-    dout      => re.element2_fifo.dout,
-    wr_en     => re.element2_fifo.c.wr_en,
-    rd_en     => re.element2_fifo.c.rd_en,
-    full      => re.element2_fifo.c.full,
-    wr_ack    => re.element2_fifo.c.wr_ack,
-    overflow  => re.element2_fifo.c.overflow,
-    empty     => re.element2_fifo.c.empty,
-    valid     => re.element2_fifo.c.valid,
-    underflow => re.element2_fifo.c.underflow
+    srst         => reset,
+    wr_clk      => clk,
+    rd_clk      => re.clk_kernel,
+    din         => r.element2_data(255 downto 0),
+    dout        => re.element2_fifo.dout,
+    wr_en       => re.element2_fifo.c.wr_en,
+    rd_en       => rs.element_fifo_rd,
+    full        => re.element2_fifo.c.full,
+    overflow    => re.element2_fifo.c.overflow,
+    empty       => re.element2_fifo.c.empty,
+    valid       => re.element2_fifo.c.valid,
+    underflow   => re.element2_fifo.c.underflow,
+    prog_full   => re.element2_fifo.c.prog_full,
+    prog_empty   => re.element2_fifo.c.prog_empty,
+    wr_rst_busy => re.element2_fifo.c.wr_rst_busy,
+    rd_rst_busy => re.element2_fifo.c.rd_rst_busy
     );
   re.element2_fifo.c.wr_en <= r.element2_wren;
 
   gen_accum_fifo_es2 : if POSIT_ES = 2 generate
     accum_fifo : accum_fifo_es2 port map (
-      rst       => rs.accum_fifo_rst,
+      rst       => reset,
       wr_clk    => re.clk_kernel,
       rd_clk    => re.clk_kernel,
       din       => rs.accum_fifo_data,
       dout      => re.accum_fifo.dout,
       wr_en     => re.accum_fifo.c.wr_en,
-      rd_en     => re.accum_fifo.c.rd_en,
+      rd_en     => rs.accum_fifo_rd,
       full      => re.accum_fifo.c.full,
-      wr_ack    => re.accum_fifo.c.wr_ack,
       overflow  => re.accum_fifo.c.overflow,
       empty     => re.accum_fifo.c.empty,
       valid     => re.accum_fifo.c.valid,
@@ -998,15 +909,14 @@ begin
   end generate;
   gen_accum_fifo_es3 : if POSIT_ES = 3 generate
     accum_fifo : accum_fifo_es3 port map (
-      rst       => rs.accum_fifo_rst,
+      rst       => reset,
       wr_clk    => re.clk_kernel,
       rd_clk    => re.clk_kernel,
       din       => rs.accum_fifo_data,
       dout      => re.accum_fifo.dout,
       wr_en     => re.accum_fifo.c.wr_en,
-      rd_en     => re.accum_fifo.c.rd_en,
+      rd_en     => rs.accum_fifo_rd,
       full      => re.accum_fifo.c.full,
-      wr_ack    => re.accum_fifo.c.wr_ack,
       overflow  => re.accum_fifo.c.overflow,
       empty     => re.accum_fifo.c.empty,
       valid     => re.accum_fifo.c.valid,
@@ -1084,61 +994,55 @@ begin
     vs.accum_fifo_rd   := '0';
 
     vs.accum_cnt := rs.accum_cnt + 1;
-    if(rs.accum_cnt = 15) then
+    if rs.accum_cnt = 15 then
       vs.accum_cnt := (others => '0');
     end if;
 
     case rs.state is
       when SCHED_IDLE =>
-        vs.valid          := '0';
         -- Gather the lengths from other clock domain
         vs.element1_reads := r.element1_reads(31 downto 0);
         vs.element2_reads := r.element2_reads(31 downto 0);
 
         vs.accum_pass_cnt := (others => '0');
 
-        if r.filled = '1' and rs.accum_cnt = 13 then
+        if r.filled = '1' and rs.accum_cnt = 14 then
           vs.element_fifo_rd := '1';
           vs.state           := SCHED_STARTUP;
         end if;
 
       when SCHED_STARTUP =>
-        vs.valid := '0';
         if rs.accum_cnt = 15 then
-          vs.valid     := '1';          -- Enable data valid on the next cycle
           vs.startflag := '1';
-          vs.state     := SCHED_PROCESSING;  -- Go to processing state
+          vs.state     := SCHED_PROCESSING;
         end if;
 
       when SCHED_PROCESSING =>
         -- Unset the startflag
         vs.startflag := '0';
 
-        if(re.element1_fifo.c.empty = '0' and re.element2_fifo.c.empty = '0') then
+        if re.element1_fifo.c.prog_empty = '0' and re.element2_fifo.c.prog_empty = '0' and re.element1_fifo.c.rd_rst_busy = '0' and re.element2_fifo.c.rd_rst_busy = '0' then
           vs.element_fifo_rd := '1';
         end if;
 
-        if(posit_done_accum = '1') then
+        if posit_done_accum = '1' then
           vs.accum_pass_cnt := rs.accum_pass_cnt + 1;
           dumpStdOut("PASS " & integer'image(int(vs.accum_pass_cnt)));
 
-          if((re.element1_fifo.c.empty = '1' or re.element2_fifo.c.empty = '1') and rs.startflag = '0') then
-            vs.valid := '0';            -- Next inputs are not valid anymore
+          if (rs.accum_pass_cnt = align_aeq(rs.element1_reads, 3) - 1 or rs.accum_pass_cnt = align_aeq(rs.element2_reads, 3) - 1)
+            and (re.element1_fifo.c.empty = '1' or re.element2_fifo.c.empty = '1')
+            and rs.startflag = '0'
+          then
             vs.state := SCHED_LAST;
           end if;
         end if;
 
       when SCHED_LAST =>
-        if(posit_done_accum = '0') then
+        if posit_done_accum = '0' then
           vs.accum_pass_cnt := rs.accum_pass_cnt + 1;
           dumpStdOut("PASS " & integer'image(int(vs.accum_pass_cnt)));
-
-          if(r.state = LOAD_LAUNCH_PART) then
-            vs.state := SCHED_DONE_PART;
-          else
-            -- Aggregate all accumulation results
-            vs.state := SCHED_FINAL_ACCUM_COLLECT;
-          end if;
+          -- Aggregate all accumulation results
+          vs.state := SCHED_FINAL_ACCUM_COLLECT;
         end if;
 
       when SCHED_DONE_PART =>
@@ -1188,16 +1092,11 @@ begin
     if rising_edge(re.clk_kernel) then
       if reset = '1' then
         rs.state <= SCHED_IDLE;
-        rs.valid <= '0';
       else
         rs <= qs;
       end if;
     end if;
   end process;
-
-  re.element1_fifo.c.rd_en <= rs.element_fifo_rd;
-  re.element2_fifo.c.rd_en <= rs.element_fifo_rd;
-  re.accum_fifo.c.rd_en    <= rs.accum_fifo_rd;
 
   ---------------------------------------------------------------------------------------------------
   --  _____                _   _       _    _           _   _
@@ -1300,7 +1199,7 @@ begin
       );
   end generate;
   gen_accum_final_es3 : if POSIT_ES = 3 generate
-    posit_accum_final_es3_inst : positaccum_accumprod_16_raw port map (
+    posit_accum_final_es3_inst : positaccum_accumprod_16_raw_es3 port map (
       clk       => re.clk_kernel,
       rst       => reset_accum,
       in1       => re.accum_fifo.dout,

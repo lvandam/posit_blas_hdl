@@ -264,9 +264,6 @@ architecture arrow_positdot of arrow_positdot is
   signal reg_array_element2_off_hi, reg_array_element2_off_lo     : reg_array_t;
   signal reg_array_element2_posit_hi, reg_array_element2_posit_lo : reg_array_t;
 
-  -- Result buffer address
-  signal reg_array_result_data_hi, reg_array_result_data_lo : reg_array_t;
-
   -- Batch offset (to fetch from Arrow)
   signal reg_array_batch_offset : reg_array_t;
 
@@ -423,10 +420,6 @@ begin
         reg_array_element2_posit_lo (I) <= mm_regs(REG_ELEMENT2_POSIT_ADDR_LO);
 
         reg_array_batch_offset (I) <= mm_regs(REG_BATCH_OFFSET + I);
-
-        -- Global: Result
-        reg_array_result_data_hi (I) <= mm_regs(REG_RESULT_DATA_ADDR_HI + (I * 2));
-        reg_array_result_data_lo (I) <= mm_regs(REG_RESULT_DATA_ADDR_LO + (I * 2));
       end loop;
     end if;
   end process;
@@ -535,44 +528,6 @@ begin
         m_axi_rready  => axi_mid_array(I*3+1).rready
         );
 
-    -- write_converter_inst : axi_write_converter
-    --   generic map (
-    --     ADDR_WIDTH        => BUS_ADDR_WIDTH,
-    --     MASTER_DATA_WIDTH => BUS_DATA_WIDTH,
-    --     MASTER_LEN_WIDTH  => 8,
-    --     SLAVE_DATA_WIDTH  => BUS_DATA_WIDTH,
-    --     SLAVE_LEN_WIDTH   => BOTTOM_LEN_WIDTH,
-    --     SLAVE_MAX_BURST   => BOTTOM_BURST_MAX_LEN,
-    --     ENABLE_FIFO       => false
-    --     )
-    --   port map (
-    --     clk     => clk,
-    --     reset_n => reset_n,
-    --
-    --     s_bus_wreq_valid => bus_result_array(I).wreq_valid,
-    --     s_bus_wreq_ready => bus_result_array(I).wreq_ready,
-    --     s_bus_wreq_addr  => bus_result_array(I).wreq_addr,
-    --     s_bus_wreq_len   => bus_result_array(I).wreq_len,
-    --
-    --     s_bus_wdat_valid  => bus_result_array(I).wdat_valid,
-    --     s_bus_wdat_ready  => bus_result_array(I).wdat_ready,
-    --     s_bus_wdat_data   => bus_result_array(I).wdat_data,
-    --     s_bus_wdat_strobe => bus_result_array(I).wdat_strobe,
-    --     s_bus_wdat_last   => bus_result_array(I).wdat_last,
-    --
-    --     m_axi_awaddr  => axi_mid_array(I*3+2).awaddr,
-    --     m_axi_awlen   => axi_mid_array(I*3+2).awlen,
-    --     m_axi_awvalid => axi_mid_array(I*3+2).awvalid,
-    --     m_axi_awready => axi_mid_array(I*3+2).awready,
-    --     m_axi_awsize  => axi_mid_array(I*3+2).awsize,
-    --
-    --     m_axi_wvalid => axi_mid_array(I*3+2).wvalid,
-    --     m_axi_wready => axi_mid_array(I*3+2).wready,
-    --     m_axi_wdata  => axi_mid_array(I*3+2).wdata,
-    --     m_axi_wstrb  => axi_mid_array(I*3+2).wstrb,
-    --     m_axi_wlast  => axi_mid_array(I*3+2).wlast
-    --     );
-
     -- Posit dot product unit
     positdot_inst : positdot_unit generic map (
       BUS_ADDR_WIDTH     => BUS_ADDR_WIDTH,
@@ -603,10 +558,6 @@ begin
 
         element2_posit_hi => reg_array_element2_posit_hi (I),
         element2_posit_lo => reg_array_element2_posit_lo (I),
-
-        -- Results buffer addresses
-        result_data_hi => reg_array_result_data_hi (I),
-        result_data_lo => reg_array_result_data_lo (I),
 
         -- Batch offset (to fetch from Arrow)
         batch_offset => reg_array_batch_offset (I),
@@ -643,28 +594,12 @@ begin
         bus_element2_rsp_resp  => bus_element2_array(I).rsp_resp,
         bus_element2_rsp_last  => bus_element2_array(I).rsp_last,
         bus_element2_rsp_valid => bus_element2_array(I).rsp_valid,
-        bus_element2_rsp_ready => bus_element2_array(I).rsp_ready,
-
-        ---------------------------------------------------------------------------
-        -- Master bus Result
-        ---------------------------------------------------------------------------
-        -- Read request channel
-        bus_result_wreq_addr  => open, --bus_result_array(I).wreq_addr,
-        bus_result_wreq_len   => open, --bus_result_array(I).wreq_len,
-        bus_result_wreq_valid => open, --bus_result_array(I).wreq_valid,
-        bus_result_wreq_ready => '0', --bus_result_array(I).wreq_ready,
-
-        -- Read response channel
-        bus_result_wdat_data   => open, --bus_result_array(I).wdat_data,
-        bus_result_wdat_strobe => open, --bus_result_array(I).wdat_strobe,
-        bus_result_wdat_last   => open, --bus_result_array(I).wdat_last,
-        bus_result_wdat_valid  => open, --bus_result_array(I).wdat_valid,
-        bus_result_wdat_ready  => '0' --bus_result_array(I).wdat_ready
+        bus_element2_rsp_ready => bus_element2_array(I).rsp_ready
         );
   end generate;
 
   -- Tie off unused ports, if any
-  unused_gen : for I in CORES * 3 to BB - 1 generate
+  unused_gen : for I in CORES * 2 to BB - 1 generate
     axi_mid_array(I).araddr  <= (others => '0');
     axi_mid_array(I).arlen   <= (others => '0');
     axi_mid_array(I).arvalid <= '0';
@@ -853,195 +788,5 @@ begin
       bm15_resp_data  => open,
       bm15_resp_last  => open
       );
-
-  -- mid_interconnect_write : BusWriteArbiter generic map (
-  --   BUS_ADDR_WIDTH   => BUS_ADDR_WIDTH,
-  --   BUS_LEN_WIDTH    => 8,
-  --   BUS_DATA_WIDTH   => BUS_DATA_WIDTH,
-  --   BUS_STROBE_WIDTH => BUS_DATA_WIDTH/8,
-  --   NUM_SLAVES       => CORES,
-  --   ARB_METHOD       => "ROUND-ROBIN",
-  --   MAX_OUTSTANDING  => 8,
-  --   RAM_CONFIG       => "",
-  --   REQ_IN_SLICES    => false,
-  --   REQ_OUT_SLICE    => false,
-  --   DAT_IN_SLICE     => false,
-  --   DAT_OUT_SLICE    => false
-  --   )
-  --   port map (
-  --     clk   => clk,
-  --     reset => reset,
-  --
-  --     mst_wreq_valid  => axi_top.awvalid,
-  --     mst_wreq_ready  => axi_top.awready,
-  --     mst_wreq_addr   => axi_top.awaddr,
-  --     mst_wreq_len    => axi_top.awlen,
-  --     mst_wdat_valid  => axi_top.wvalid,
-  --     mst_wdat_ready  => axi_top.wready,
-  --     mst_wdat_data   => axi_top.wdata,
-  --     mst_wdat_strobe => axi_top.wstrb,
-  --     mst_wdat_last   => axi_top.wlast,
-  --
-  --     bs00_wreq_valid  => axi_mid_array(2).awvalid,
-  --     bs00_wreq_ready  => axi_mid_array(2).awready,
-  --     bs00_wreq_addr   => axi_mid_array(2).awaddr,
-  --     bs00_wreq_len    => axi_mid_array(2).awlen,
-  --     bs00_wdat_valid  => axi_mid_array(2).wvalid,
-  --     bs00_wdat_ready  => axi_mid_array(2).wready,
-  --     bs00_wdat_data   => axi_mid_array(2).wdata,
-  --     bs00_wdat_strobe => axi_mid_array(2).wstrb,
-  --     bs00_wdat_last   => axi_mid_array(2).wlast,
-  --
-  --     bs01_wreq_valid  => open,
-  --     bs01_wreq_ready  => open,
-  --     bs01_wreq_addr   => open,
-  --     bs01_wreq_len    => open,
-  --     bs01_wdat_valid  => open,
-  --     bs01_wdat_ready  => open,
-  --     bs01_wdat_data   => open,
-  --     bs01_wdat_strobe => open,
-  --     bs01_wdat_last   => open,
-  --
-  --     bs02_wreq_valid  => open,
-  --     bs02_wreq_ready  => open,
-  --     bs02_wreq_addr   => open,
-  --     bs02_wreq_len    => open,
-  --     bs02_wdat_valid  => open,
-  --     bs02_wdat_ready  => open,
-  --     bs02_wdat_data   => open,
-  --     bs02_wdat_strobe => open,
-  --     bs02_wdat_last   => open,
-  --
-  --     bs03_wreq_valid  => open,
-  --     bs03_wreq_ready  => open,
-  --     bs03_wreq_addr   => open,
-  --     bs03_wreq_len    => open,
-  --     bs03_wdat_valid  => open,
-  --     bs03_wdat_ready  => open,
-  --     bs03_wdat_data   => open,
-  --     bs03_wdat_strobe => open,
-  --     bs03_wdat_last   => open,
-  --
-  --     bs04_wreq_valid  => open,
-  --     bs04_wreq_ready  => open,
-  --     bs04_wreq_addr   => open,
-  --     bs04_wreq_len    => open,
-  --     bs04_wdat_valid  => open,
-  --     bs04_wdat_ready  => open,
-  --     bs04_wdat_data   => open,
-  --     bs04_wdat_strobe => open,
-  --     bs04_wdat_last   => open,
-  --
-  --     bs05_wreq_valid  => open,
-  --     bs05_wreq_ready  => open,
-  --     bs05_wreq_addr   => open,
-  --     bs05_wreq_len    => open,
-  --     bs05_wdat_valid  => open,
-  --     bs05_wdat_ready  => open,
-  --     bs05_wdat_data   => open,
-  --     bs05_wdat_strobe => open,
-  --     bs05_wdat_last   => open,
-  --
-  --     bs06_wreq_valid  => open,
-  --     bs06_wreq_ready  => open,
-  --     bs06_wreq_addr   => open,
-  --     bs06_wreq_len    => open,
-  --     bs06_wdat_valid  => open,
-  --     bs06_wdat_ready  => open,
-  --     bs06_wdat_data   => open,
-  --     bs06_wdat_strobe => open,
-  --     bs06_wdat_last   => open,
-  --
-  --     bs07_wreq_valid  => open,
-  --     bs07_wreq_ready  => open,
-  --     bs07_wreq_addr   => open,
-  --     bs07_wreq_len    => open,
-  --     bs07_wdat_valid  => open,
-  --     bs07_wdat_ready  => open,
-  --     bs07_wdat_data   => open,
-  --     bs07_wdat_strobe => open,
-  --     bs07_wdat_last   => open,
-  --
-  --     bs08_wreq_valid  => open,
-  --     bs08_wreq_ready  => open,
-  --     bs08_wreq_addr   => open,
-  --     bs08_wreq_len    => open,
-  --     bs08_wdat_valid  => open,
-  --     bs08_wdat_ready  => open,
-  --     bs08_wdat_data   => open,
-  --     bs08_wdat_strobe => open,
-  --     bs08_wdat_last   => open,
-  --
-  --     bs09_wreq_valid  => open,
-  --     bs09_wreq_ready  => open,
-  --     bs09_wreq_addr   => open,
-  --     bs09_wreq_len    => open,
-  --     bs09_wdat_valid  => open,
-  --     bs09_wdat_ready  => open,
-  --     bs09_wdat_data   => open,
-  --     bs09_wdat_strobe => open,
-  --     bs09_wdat_last   => open,
-  --
-  --     bs10_wreq_valid  => open,
-  --     bs10_wreq_ready  => open,
-  --     bs10_wreq_addr   => open,
-  --     bs10_wreq_len    => open,
-  --     bs10_wdat_valid  => open,
-  --     bs10_wdat_ready  => open,
-  --     bs10_wdat_data   => open,
-  --     bs10_wdat_strobe => open,
-  --     bs10_wdat_last   => open,
-  --
-  --     bs11_wreq_valid  => open,
-  --     bs11_wreq_ready  => open,
-  --     bs11_wreq_addr   => open,
-  --     bs11_wreq_len    => open,
-  --     bs11_wdat_valid  => open,
-  --     bs11_wdat_ready  => open,
-  --     bs11_wdat_data   => open,
-  --     bs11_wdat_strobe => open,
-  --     bs11_wdat_last   => open,
-  --
-  --     bs12_wreq_valid  => open,
-  --     bs12_wreq_ready  => open,
-  --     bs12_wreq_addr   => open,
-  --     bs12_wreq_len    => open,
-  --     bs12_wdat_valid  => open,
-  --     bs12_wdat_ready  => open,
-  --     bs12_wdat_data   => open,
-  --     bs12_wdat_strobe => open,
-  --     bs12_wdat_last   => open,
-  --
-  --     bs13_wreq_valid  => open,
-  --     bs13_wreq_ready  => open,
-  --     bs13_wreq_addr   => open,
-  --     bs13_wreq_len    => open,
-  --     bs13_wdat_valid  => open,
-  --     bs13_wdat_ready  => open,
-  --     bs13_wdat_data   => open,
-  --     bs13_wdat_strobe => open,
-  --     bs13_wdat_last   => open,
-  --
-  --     bs14_wreq_valid  => open,
-  --     bs14_wreq_ready  => open,
-  --     bs14_wreq_addr   => open,
-  --     bs14_wreq_len    => open,
-  --     bs14_wdat_valid  => open,
-  --     bs14_wdat_ready  => open,
-  --     bs14_wdat_data   => open,
-  --     bs14_wdat_strobe => open,
-  --     bs14_wdat_last   => open,
-  --
-  --     bs15_wreq_valid  => open,
-  --     bs15_wreq_ready  => open,
-  --     bs15_wreq_addr   => open,
-  --     bs15_wreq_len    => open,
-  --     bs15_wdat_valid  => open,
-  --     bs15_wdat_ready  => open,
-  --     bs15_wdat_data   => open,
-  --     bs15_wdat_strobe => open,
-  --     bs15_wdat_last   => open
-  --     );
-
 
 end arrow_positdot;

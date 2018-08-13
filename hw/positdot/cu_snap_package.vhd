@@ -49,6 +49,9 @@ package cu_snap_package is
     element1_rst : std_logic;
     element2_rst : std_logic;
 
+    element1_nonempty_sticky : std_logic;
+    element2_nonempty_sticky : std_logic;
+
     filled : std_logic;
   end record;
 
@@ -117,9 +120,16 @@ package cu_snap_package is
     overflow  : std_logic;
     underflow : std_logic;
 
+    prog_full  : std_logic;
+    prog_empty : std_logic;
+
     rst    : std_logic;
+
     rd_rst : std_logic;
     wr_rst : std_logic;
+
+    rd_rst_busy : std_logic;
+    wr_rst_busy : std_logic;
   end record;
 
   type outfifo_item is record
@@ -172,19 +182,22 @@ package body cu_snap_package is
     r.element2_reads <= (others => '0');
     r.element2_data  <= (others => '0');
 
+    r.element_reads_valid <= '0';
+
     r.element1_last <= '0';
     r.element2_last <= '0';
 
     r.element1_full <= '0';
     r.element2_full <= '0';
 
-    r.element_reads_valid <= '0';
-
     r.element1_wren <= '0';
     r.element2_wren <= '0';
 
     r.element1_rst <= '1';
     r.element2_rst <= '1';
+
+    r.element1_nonempty_sticky <= '0';
+    r.element2_nonempty_sticky <= '0';
 
     r.filled <= '0';
   end procedure cu_reset;

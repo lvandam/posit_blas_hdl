@@ -55,7 +55,7 @@
 
 //----------- Begin Cut here for INSTANTIATION Template ---// INST_TAG
 element_fifo your_instance_name (
-  .rst(rst),                  // input wire rst
+  .srst(srst),                // input wire srst
   .wr_clk(wr_clk),            // input wire wr_clk
   .rd_clk(rd_clk),            // input wire rd_clk
   .din(din),                  // input wire [255 : 0] din
@@ -68,6 +68,8 @@ element_fifo your_instance_name (
   .empty(empty),              // output wire empty
   .valid(valid),              // output wire valid
   .underflow(underflow),      // output wire underflow
+  .prog_full(prog_full),      // output wire prog_full
+  .prog_empty(prog_empty),    // output wire prog_empty
   .wr_rst_busy(wr_rst_busy),  // output wire wr_rst_busy
   .rd_rst_busy(rd_rst_busy)  // output wire rd_rst_busy
 );

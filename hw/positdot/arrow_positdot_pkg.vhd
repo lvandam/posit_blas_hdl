@@ -204,44 +204,6 @@ package arrow_positdot_pkg is
       );
   end component;
 
-  -----------------------------------------------------------------------------
-  -- AXI write address & data channel conversion
-  -----------------------------------------------------------------------------
-  component axi_write_converter is
-    generic (
-      ADDR_WIDTH        : natural;
-      MASTER_DATA_WIDTH : natural;
-      MASTER_LEN_WIDTH  : natural;
-      SLAVE_DATA_WIDTH  : natural;
-      SLAVE_LEN_WIDTH   : natural;
-      SLAVE_MAX_BURST   : natural;
-      ENABLE_FIFO       : boolean
-      );
-    port (
-      clk               : in  std_logic;
-      reset_n           : in  std_logic;
-      s_bus_wreq_valid  : in  std_logic;
-      s_bus_wreq_ready  : out std_logic;
-      s_bus_wreq_addr   : in  std_logic_vector(ADDR_WIDTH-1 downto 0);
-      s_bus_wreq_len    : in  std_logic_vector(SLAVE_LEN_WIDTH-1 downto 0);
-      s_bus_wdat_valid  : in  std_logic;
-      s_bus_wdat_ready  : out std_logic;
-      s_bus_wdat_data   : in  std_logic_vector(SLAVE_DATA_WIDTH-1 downto 0);
-      s_bus_wdat_strobe : in  std_logic_vector(SLAVE_DATA_WIDTH/8-1 downto 0);
-      s_bus_wdat_last   : in  std_logic;
-      m_axi_awaddr      : out std_logic_vector(ADDR_WIDTH-1 downto 0);
-      m_axi_awlen       : out std_logic_vector(MASTER_LEN_WIDTH-1 downto 0);
-      m_axi_awvalid     : out std_logic;
-      m_axi_awready     : in  std_logic;
-      m_axi_awsize      : out std_logic_vector(2 downto 0);
-      m_axi_wvalid      : out std_logic;
-      m_axi_wready      : in  std_logic;
-      m_axi_wdata       : out std_logic_vector(MASTER_DATA_WIDTH-1 downto 0);
-      m_axi_wstrb       : out std_logic_vector(MASTER_DATA_WIDTH/8-1 downto 0);
-      m_axi_wlast       : out std_logic
-      );
-  end component;
-
   component positdot_unit is
     generic (
       -- Host bus properties
@@ -258,97 +220,82 @@ package arrow_positdot_pkg is
       );
 
     port (
-      clk     : in std_logic;
-      reset_n : in std_logic;
+        clk     : in std_logic;
+        reset_n : in std_logic;
 
-      control_reset : in  std_logic;
-      control_start : in  std_logic;
-      reset_start   : out std_logic;
+        control_reset : in  std_logic;
+        control_start : in  std_logic;
 
-      busy : out std_logic;
-      done : out std_logic;
+        reset_start   : out std_logic;
+        busy : out std_logic;
+        done : out std_logic;
 
-      -- Elements buffer addresses
-      element1_off_hi, element1_off_lo     : in std_logic_vector(REG_WIDTH-1 downto 0);
-      element1_posit_hi, element1_posit_lo : in std_logic_vector(REG_WIDTH-1 downto 0);
-      -- Elements vector 2 buffer addresses
-      element2_off_hi, element2_off_lo     : in std_logic_vector(REG_WIDTH-1 downto 0);
-      element2_posit_hi, element2_posit_lo : in std_logic_vector(REG_WIDTH-1 downto 0);
+        -- Elements vector 1 buffer addresses
+        element1_off_hi, element1_off_lo     : in std_logic_vector(REG_WIDTH-1 downto 0);
+        element1_posit_hi, element1_posit_lo : in std_logic_vector(REG_WIDTH-1 downto 0);
 
-      -- Result buffer address
-      result_data_hi, result_data_lo : in std_logic_vector(REG_WIDTH-1 downto 0);
+        -- Elements vector 2 buffer addresses
+        element2_off_hi, element2_off_lo     : in std_logic_vector(REG_WIDTH-1 downto 0);
+        element2_posit_hi, element2_posit_lo : in std_logic_vector(REG_WIDTH-1 downto 0);
 
-      -- Batch offset (to fetch from Arrow)
-      batch_offset : in std_logic_vector(REG_WIDTH-1 downto 0);
+        -- Batch offset (to fetch from Arrow)
+        batch_offset : in std_logic_vector(REG_WIDTH-1 downto 0);
 
-      -- Result array
-      result : out std_logic_vector(REG_WIDTH-1 downto 0);
+        -- Result array
+        result : out std_logic_vector(REG_WIDTH-1 downto 0);
 
-      ---------------------------------------------------------------------------
-      -- Master bus posit vector 1
-      ---------------------------------------------------------------------------
-      -- Read request channel
-      bus_element1_req_addr  : out std_logic_vector(BUS_ADDR_WIDTH-1 downto 0);
-      bus_element1_req_len   : out std_logic_vector(BUS_LEN_WIDTH-1 downto 0);
-      bus_element1_req_valid : out std_logic;
-      bus_element1_req_ready : in  std_logic;
+        ---------------------------------------------------------------------------
+        -- Master bus posit vector 1
+        ---------------------------------------------------------------------------
+        -- Read request channel
+        bus_element1_req_addr  : out std_logic_vector(BUS_ADDR_WIDTH-1 downto 0);
+        bus_element1_req_len   : out std_logic_vector(BUS_LEN_WIDTH-1 downto 0);
+        bus_element1_req_valid : out std_logic;
+        bus_element1_req_ready : in  std_logic;
 
-      -- Read response channel
-      bus_element1_rsp_data  : in  std_logic_vector(BUS_DATA_WIDTH-1 downto 0);
-      bus_element1_rsp_resp  : in  std_logic_vector(1 downto 0);
-      bus_element1_rsp_last  : in  std_logic;
-      bus_element1_rsp_valid : in  std_logic;
-      bus_element1_rsp_ready : out std_logic;
+        -- Read response channel
+        bus_element1_rsp_data  : in  std_logic_vector(BUS_DATA_WIDTH-1 downto 0);
+        bus_element1_rsp_resp  : in  std_logic_vector(1 downto 0);
+        bus_element1_rsp_last  : in  std_logic;
+        bus_element1_rsp_valid : in  std_logic;
+        bus_element1_rsp_ready : out std_logic;
 
-      ---------------------------------------------------------------------------
-      -- Master bus posit vector 2
-      ---------------------------------------------------------------------------
-      -- Read request channel
-      bus_element2_req_addr  : out std_logic_vector(BUS_ADDR_WIDTH-1 downto 0);
-      bus_element2_req_len   : out std_logic_vector(BUS_LEN_WIDTH-1 downto 0);
-      bus_element2_req_valid : out std_logic;
-      bus_element2_req_ready : in  std_logic;
+        ---------------------------------------------------------------------------
+        -- Master bus posit vector 2
+        ---------------------------------------------------------------------------
+        -- Read request channel
+        bus_element2_req_addr  : out std_logic_vector(BUS_ADDR_WIDTH-1 downto 0);
+        bus_element2_req_len   : out std_logic_vector(BUS_LEN_WIDTH-1 downto 0);
+        bus_element2_req_valid : out std_logic;
+        bus_element2_req_ready : in  std_logic;
 
-      -- Read response channel
-      bus_element2_rsp_data  : in  std_logic_vector(BUS_DATA_WIDTH-1 downto 0);
-      bus_element2_rsp_resp  : in  std_logic_vector(1 downto 0);
-      bus_element2_rsp_last  : in  std_logic;
-      bus_element2_rsp_valid : in  std_logic;
-      bus_element2_rsp_ready : out std_logic;
-
-      ---------------------------------------------------------------------------
-      -- Master bus Result
-      ---------------------------------------------------------------------------
-      -- Write request channel
-      bus_result_wreq_addr  : out std_logic_vector(BUS_ADDR_WIDTH-1 downto 0);
-      bus_result_wreq_len   : out std_logic_vector(BUS_LEN_WIDTH-1 downto 0);
-      bus_result_wreq_valid : out std_logic;
-      bus_result_wreq_ready : in  std_logic;
-
-      -- Write response channel
-      bus_result_wdat_data   : out std_logic_vector(BUS_DATA_WIDTH-1 downto 0);
-      bus_result_wdat_strobe : out std_logic_vector(BUS_DATA_WIDTH/8-1 downto 0);
-      bus_result_wdat_last   : out std_logic;
-      bus_result_wdat_valid  : out std_logic;
-      bus_result_wdat_ready  : in  std_logic
+        -- Read response channel
+        bus_element2_rsp_data  : in  std_logic_vector(BUS_DATA_WIDTH-1 downto 0);
+        bus_element2_rsp_resp  : in  std_logic_vector(1 downto 0);
+        bus_element2_rsp_last  : in  std_logic;
+        bus_element2_rsp_valid : in  std_logic;
+        bus_element2_rsp_ready : out std_logic
       );
   end component;
 
-  component element_fifo is
+  component element_fifo
     port (
-      rst       : in  std_logic;
-      wr_clk    : in  std_logic;
-      rd_clk    : in  std_logic;
-      din       : in  std_logic_vector (255 downto 0);
-      wr_en     : in  std_logic;
-      rd_en     : in  std_logic;
-      dout      : out std_logic_vector (31 downto 0);
-      full      : out std_logic;
-      wr_ack    : out std_logic;
-      overflow  : out std_logic;
-      empty     : out std_logic;
-      valid     : out std_logic;
-      underflow : out std_logic
+      srst        : in  std_logic;
+      wr_clk      : in  std_logic;
+      rd_clk      : in  std_logic;
+      din         : in  std_logic_vector(255 downto 0);
+      wr_en       : in  std_logic;
+      rd_en       : in  std_logic;
+      dout        : out std_logic_vector(31 downto 0);
+      full        : out std_logic;
+      overflow    : out std_logic;
+      empty       : out std_logic;
+      valid       : out std_logic;
+      underflow   : out std_logic;
+      prog_full   : out std_logic;
+      prog_empty  : out std_logic;
+      wr_rst_busy : out std_logic;
+      rd_rst_busy : out std_logic
       );
   end component;
 
@@ -362,7 +309,6 @@ package arrow_positdot_pkg is
       rd_en     : in  std_logic;
       dout      : out std_logic_vector (158 downto 0);
       full      : out std_logic;
-      wr_ack    : out std_logic;
       overflow  : out std_logic;
       empty     : out std_logic;
       valid     : out std_logic;
@@ -380,7 +326,6 @@ package arrow_positdot_pkg is
       rd_en     : in  std_logic;
       dout      : out std_logic_vector (264 downto 0);
       full      : out std_logic;
-      wr_ack    : out std_logic;
       overflow  : out std_logic;
       empty     : out std_logic;
       valid     : out std_logic;

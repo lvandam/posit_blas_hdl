@@ -25,8 +25,14 @@ int main(int argc, char ** argv)
     cout << endl << "=== VECTOR ADD ===" << endl;
     test_add(50);
 
+    cout << endl << "=== VECTOR ADD SCALAR ===" << endl;
+    test_add_scalar(50);
+
     cout << endl << "=== VECTOR SUBTRACT ===" << endl;
     test_subtract(50);
+
+    cout << endl << "=== VECTOR SUBTRACT SCALAR ===" << endl;
+    test_subtract_scalar(50);
 
     cout << endl << "=== VECTOR SUM ===" << endl;
     test_sum(50);
@@ -77,6 +83,28 @@ void test_add(int length) {
     cout << "FPGA Execution Time: " << t_fpga << "s" << endl;
 }
 
+void test_add_scalar(int length) {
+    // Vector Add Scalar
+    std::vector<posit<32,2>> vec1;
+    std::vector<posit<32,2>> result;
+    posit<32,2> scalar;
+
+    for(int i = 0; i < length; i++){
+        vec1.push_back(i);
+    }
+
+    scalar = 5;
+
+    double t_fpga;
+    t_fpga = vector_add(vec1, scalar, result);
+
+    cout << "Posit Result: " << endl;
+    for(posit<32,2>& el : result) {
+        cout << pretty_print(el) << endl;
+    }
+    cout << "FPGA Execution Time: " << t_fpga << "s" << endl;
+}
+
 void test_subtract(int length) {
     // Vector Subtract
     std::vector<posit<32,2>> vec1, vec2;
@@ -89,6 +117,28 @@ void test_subtract(int length) {
 
     double t_fpga;
     t_fpga = vector_sub(vec1, vec2, result);
+
+    cout << "Posit Result: " << endl;
+    for(posit<32,2>& el : result) {
+        cout << pretty_print(el) << endl;
+    }
+    cout << "FPGA Execution Time: " << t_fpga << "s" << endl;
+}
+
+void test_subtract_scalar(int length) {
+    // Vector Subtract Scalar
+    std::vector<posit<32,2>> vec1;
+    std::vector<posit<32,2>> result;
+    posit<32,2> scalar;
+
+    for(int i = 0; i < length; i++){
+        vec1.push_back(i);
+    }
+
+    scalar = 5;
+
+    double t_fpga;
+    t_fpga = vector_sub(vec1, scalar, result);
 
     cout << "Posit Result: " << endl;
     for(posit<32,2>& el : result) {

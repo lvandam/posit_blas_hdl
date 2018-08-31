@@ -10,9 +10,16 @@
 
 using namespace sw::unum;
 
-double vector_dot(std::vector<posit<32, 2>>& vector1, std::vector<posit<32, 2>>& vector2, posit<32, 2>& result);
+// Addition/Subtraction
 double vector_add(std::vector<posit<32, 2>>& vector1, std::vector<posit<32, 2>>& vector2, std::vector<posit<32, 2>>& result);
 double vector_sub(std::vector<posit<32, 2>>& vector1, std::vector<posit<32, 2>>& vector2, std::vector<posit<32, 2>>& result);
+
+// Addition/Subtraction Scalar
+double vector_add(std::vector<posit<32, 2>>& vector1, posit<32, 2>& scalar, std::vector<posit<32, 2>>& result);
+double vector_sub(std::vector<posit<32, 2>>& vector1, posit<32, 2>& scalar, std::vector<posit<32, 2>>& result);
+
+// Aggregation functions
+double vector_dot(std::vector<posit<32, 2>>& vector1, std::vector<posit<32, 2>>& vector2, posit<32, 2>& result);
 double vector_sum(std::vector<posit<32, 2>>& vector1, posit<32, 2>& result);
 
 #endif

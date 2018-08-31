@@ -30,8 +30,8 @@
 
 // Posit dot FPGA UserCore
 #include "scheme.hpp"
-#include "PositDotUserCore.h"
-#include "positdot.hpp"
+#include "PositArithUserCore.h"
+#include "positarith.hpp"
 
 #include "debug_values.hpp"
 #include "utils.hpp"
@@ -75,12 +75,10 @@ int main(int argc, char ** argv)
 
         int length = 10;
         bool calculate_sw = true;
-        bool show_results = false;
 
         DEBUG_PRINT("Parsing input arguments...\n");
         if (argc >= 2) istringstream(argv[1]) >> length;
         if (argc >= 3) istringstream(argv[2]) >> calculate_sw;
-        if (argc >= 4) istringstream(argv[3]) >> show_results;
 
         cout << "=========================================" << endl;
         cout << "LENGTH = " << length << endl;
@@ -141,7 +139,7 @@ int main(int argc, char ** argv)
 
         start = omp_get_wtime();
         // Create a UserCore
-        PositDotUserCore uc(static_pointer_cast<fletcher::FPGAPlatform>(platform));
+        PositArithUserCore uc(static_pointer_cast<fletcher::FPGAPlatform>(platform));
 
         // Reset UserCore
         uc.reset();
@@ -274,4 +272,78 @@ int main(int argc, char ** argv)
         outfile.close();
 
         return 0;
+}
+
+
+/**
+ * Vector dot product
+ */
+double vector_dot(std::vector<posit<NBITS, ES>>& vector1, std::vector<posit<NBITS, ES>>& vector2, posit<NBITS, ES>& result)
+{
+        // Times
+        double start, stop;
+        double t_fpga = 0.0;
+
+        flush(cout);
+
+        if(vector1.size() != vector2.size()) {
+            throw domain_error("Unequal input vector lengths");
+        }
+
+        int length = vector1.size();
+        bool calculate_sw = true;
+
+        DEBUG_PRINT("Creating Arrow table...\n");
+        shared_ptr<arrow::Table> table_elements = create_table_elements(vector1, vector2);
+
+        // Create a platform
+        shared_ptr<fletcher::SNAPPlatform> platform(new fletcher::SNAPPlatform());
+
+        DEBUG_PRINT("Preparing column buffers...\n");
+        // Prepare the colummn buffers
+        std::vector<std::shared_ptr<arrow::Column> > columns;
+        columns.push_back(table_elements->column(0));
+        columns.push_back(table_elements->column(1));
+        platform->prepare_column_chunks(columns);
+
+        // Create a UserCore
+        DEBUG_PRINT("Creating UserCore instance...\n");
+        PositArithUserCore uc(static_pointer_cast<fletcher::FPGAPlatform>(platform));
+
+        // Reset UserCore
+        uc.reset();
+
+        // Configure the cores
+        // TODO set the operation
+
+        // Run
+        start = omp_get_wtime();
+        uc.start();
+
+#ifdef DEBUG
+        uc.wait_for_finish(1000000);
+#else
+        uc.wait_for_finish();
+#endif
+
+        // Read result from MMIO
+        uint32_t result_hw;
+        addr_lohi val;
+        platform->read_mmio(REG_RESULT_OFFSET, &val.full);
+        result_hw = val.half.hi;
+
+        stop = omp_get_wtime();
+        t_fpga = stop - start;
+
+        // cout << dec <<"0: " << hex << result_hw << dec <<endl;
+
+        posit<NBITS, ES> result_posit;
+        result_posit.set_raw_bits(result_hw);
+
+        // Reset UserCore
+        uc.reset();
+
+        result = result_posit;
+
+        return t_fpga;
 }

@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.3.2)
 
-project(posit_dot)
+include(GNUInstallDirs)
+
+project(positarith)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -9,6 +11,8 @@ set(CMAKE_CXX_FLAGS "-Wall -Wextra -fext-numeric-literals")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 set(EXTERNAL_INSTALL_LOCATION ${CMAKE_BINARY_DIR}/external)
+
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/build)
 
 include(ExternalProject)
 ExternalProject_Add(universal
@@ -21,18 +25,25 @@ ExternalProject_Add(universal
         INSTALL_COMMAND ""
         )
 
+find_package(Boost REQUIRED system filesystem)
+find_library(LIB_FLETCHER fletcher)
+find_library(LIB_ARROW arrow)
+
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../lib)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+include_directories(${LIB_FLETCHER_INCLUDE_DIRS})
+include_directories(${LIB_ARROW_INCLUDE_DIRS})
+
 include_directories(${EXTERNAL_INSTALL_LOCATION}/src/universal)
 
-file(GLOB posit_dot_SRC
+file(GLOB positarith_SRC
         "src/*.hpp"
         "src/*.cpp"
         )
 
-add_executable(posit_dot ${posit_dot_SRC})
-add_dependencies(posit_dot universal)
+# add_executable(positarith ${positarith_SRC})
+# add_dependencies(positarith universal)
 
-find_library(LIB_FLETCHER fletcher)
-find_library(LIB_ARROW arrow)
 
 find_package(OpenMP REQUIRED)
 if (OPENMP_FOUND)
@@ -53,18 +64,39 @@ find_library(LIB_SNAP snap HINTS $ENV{SNAP_ROOT}/software/lib)
 message(STATUS "SNAP libsnap.so at: " ${LIB_SNAP})
 set(LIB_PLATFORM ${LIB_SNAP})
 
-option(ENABLE_DEBUG "Enable debugging" OFF)
+# target_compile_definitions(${PROJECT_NAME} PRIVATE PLATFORM=${RUNTIME_PLATFORM})
 
-if (ENABLE_DEBUG)
-    message(STATUS "DEBUG ON")
-  target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG)
-endif()
+# target_link_libraries(${PROJECT_NAME}
+#   ${REQUIRED}
+#   ${LIB_FLETCHER}
+#   ${LIB_ARROW}
+#   ${LIB_PLATFORM}
+# )
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE PLATFORM=${RUNTIME_PLATFORM})
 
-target_link_libraries(${PROJECT_NAME}
+add_library(positarith SHARED
+    src/positarith.cpp
+    src/PositArithUserCore.cpp
+    src/scheme.cpp
+    src/utils.cpp
+)
+
+target_link_libraries(positarith
   ${REQUIRED}
   ${LIB_FLETCHER}
   ${LIB_ARROW}
   ${LIB_PLATFORM}
 )
+
+set_target_properties(positarith PROPERTIES VERSION 0.1)
+set_target_properties(positarith PROPERTIES SOVERSION 1)
+set_target_properties(positarith PROPERTIES PUBLIC_HEADER include/positarith.h)
+target_include_directories(positarith PRIVATE include)
+target_include_directories(positarith PRIVATE src)
+
+install(TARGETS positarith
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+configure_file(positarith.pc.in positarith.pc @ONLY)
+install(FILES ${CMAKE_BINARY_DIR}/positarith.pc DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig)

@@ -14,13 +14,13 @@
 
 #include <stdexcept>
 
-#include "PositDotUserCore.h"
+#include "PositArithUserCore.h"
 #include "defines.hpp"
 #include "utils.hpp"
 
 using namespace fletcher;
 
-PositDotUserCore::PositDotUserCore(std::shared_ptr<fletcher::FPGAPlatform> platform)
+PositArithUserCore::PositArithUserCore(std::shared_ptr<fletcher::FPGAPlatform> platform)
         : UserCore(platform)
 {
         // Some settings that are different from standard implementation
@@ -38,7 +38,7 @@ PositDotUserCore::PositDotUserCore(std::shared_ptr<fletcher::FPGAPlatform> platf
         }
 }
 
-void PositDotUserCore::set_batch_offsets(std::vector<uint32_t>& offsets) {
+void PositArithUserCore::set_batch_offsets(std::vector<uint32_t>& offsets) {
         for (int i = 0; i < MAX_CORES / 2; i++) {
             reg_conv_t reg;
 
@@ -54,7 +54,7 @@ void PositDotUserCore::set_batch_offsets(std::vector<uint32_t>& offsets) {
         }
 }
 
-void PositDotUserCore::control_zero()
+void PositArithUserCore::control_zero()
 {
         this->platform()->write_mmio(REG_CONTROL_OFFSET, 0x00000000);
 }

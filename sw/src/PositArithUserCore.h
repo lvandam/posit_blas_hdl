@@ -32,17 +32,17 @@
 #define REG_RESULT_OFFSET 21
 
 /**
- * \class PositDotUserCore
+ * \class PositArithUserCore
  *
  * A class to provide interaction with the regular expression matching UserCore example.
  */
-class PositDotUserCore : public fletcher::UserCore
+class PositArithUserCore : public fletcher::UserCore
 {
 public:
 /**
  * \param platform  The platform to run the core on.
  */
-PositDotUserCore(std::shared_ptr<fletcher::FPGAPlatform> platform);
+PositArithUserCore(std::shared_ptr<fletcher::FPGAPlatform> platform);
 
 void set_batch_offsets(std::vector<uint32_t>& offsets);
 

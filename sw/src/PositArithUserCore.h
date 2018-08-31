@@ -31,7 +31,7 @@
 
 #define REG_OPERATION_OFFSET 11
 
-enum Operation { INVALID_OP = 0, VECTOR_DOT = 1 };
+enum Operation { INVALID_OP = 0, VECTOR_DOT = 1, VECTOR_ADD = 2 };
 
 /**
  * \class PositArithUserCore

@@ -96,6 +96,6 @@ void writeBenchmark(DebugValues<posit<NBITS, ES> > &hw_debug_values, DebugValues
 }
 
 int roundToMultiple(int toRound, int multiple) {
-        toRound += multiple / 2;
-        return toRound - (toRound%multiple);
+        int rem = toRound % multiple;
+        return toRound + (multiple - rem);
 }

@@ -7,8 +7,8 @@ use work.posit_package.all;
 
 package cu_snap_package is
 
-type op_type is (INVALID_OP, VECTOR_DOT);
-function op2op (a      : in std_logic_vector(31 downto 0)) return op_type;
+  type op_type is (INVALID_OP, VECTOR_DOT, VECTOR_ADD);
+  function op2op (a : in std_logic_vector(31 downto 0)) return op_type;
 
   constant MAX_BATCHES : natural := 3;
 
@@ -33,7 +33,7 @@ function op2op (a      : in std_logic_vector(31 downto 0)) return op_type;
     state : cu_state;
     wed   : wed_type;
 
-    operation: op_type;
+    operation : op_type;
 
     element1_reads      : unsigned(31 downto 0);
     element2_reads      : unsigned(31 downto 0);
@@ -61,14 +61,19 @@ function op2op (a      : in std_logic_vector(31 downto 0)) return op_type;
   end record;
 
   type cu_sched_state is (
+    SCHED_WAIT_START,
     SCHED_IDLE,
     SCHED_LOAD_FIRST,
     SCHED_STARTUP,
-    SCHED_PROCESSING,
-    SCHED_LAST,
-    SCHED_DONE_PART,
-    SCHED_FINAL_ACCUM_COLLECT,
-    SCHED_FINAL_ACCUM,
+
+    SCHED_VECTOR_DOT_PROCESSING,
+    SCHED_VECTOR_DOT_LAST,
+    SCHED_VECTOR_DOT_FINAL_ACCUM_COLLECT,
+    SCHED_VECTOR_DOT_FINAL_ACCUM,
+
+    SCHED_VECTOR_ADD_PROCESSING,
+    -- SCHED_VECTOR_ADD_LAST,
+
     SCHED_DONE
     );
 
@@ -77,7 +82,7 @@ function op2op (a      : in std_logic_vector(31 downto 0)) return op_type;
     valid     : std_logic;              -- Valid bit
     startflag : std_logic;
 
-    operation : op_type;
+    operation          : op_type;
     result_length      : unsigned(31 downto 0);
     element1_reads     : unsigned(31 downto 0);
     element2_reads     : unsigned(31 downto 0);
@@ -132,7 +137,7 @@ function op2op (a      : in std_logic_vector(31 downto 0)) return op_type;
     prog_full  : std_logic;
     prog_empty : std_logic;
 
-    rst    : std_logic;
+    rst : std_logic;
 
     rd_rst : std_logic;
     wr_rst : std_logic;
@@ -181,13 +186,14 @@ function op2op (a      : in std_logic_vector(31 downto 0)) return op_type;
 end package cu_snap_package;
 
 package body cu_snap_package is
-    function op2op (a      : in std_logic_vector(31 downto 0)) return op_type is
-    begin
-        case a is
-          when x"00000001" => return VECTOR_DOT;
-          when others     => return INVALID_OP;
-        end case;
-    end function;
+  function op2op (a : in std_logic_vector(31 downto 0)) return op_type is
+  begin
+    case a is
+      when x"00000001" => return VECTOR_DOT;
+      when x"00000002" => return VECTOR_ADD;
+      when others      => return INVALID_OP;
+    end case;
+  end function;
 
   procedure cu_reset (signal r : inout cu_int) is
   begin
@@ -220,5 +226,4 @@ package body cu_snap_package is
 
     r.filled <= '0';
   end procedure cu_reset;
-
 end package body cu_snap_package;

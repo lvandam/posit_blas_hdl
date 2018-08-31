@@ -50,11 +50,11 @@ entity positdot_unit is
     element2_off_hi, element2_off_lo     : in std_logic_vector(REG_WIDTH-1 downto 0);
     element2_posit_hi, element2_posit_lo : in std_logic_vector(REG_WIDTH-1 downto 0);
 
-    -- Batch offset (to fetch from Arrow)
-    batch_offset : in std_logic_vector(REG_WIDTH-1 downto 0);
-
     -- Result array
     result : out std_logic_vector(REG_WIDTH-1 downto 0);
+
+    -- Operation
+    operation : in std_logic_vector(REG_WIDTH-1 downto 0);
 
     ---------------------------------------------------------------------------
     -- Master bus posit vector 1
@@ -108,7 +108,7 @@ architecture positdot_unit of positdot_unit is
   signal r_element2_off_hi, r_element2_off_lo     : std_logic_vector(REG_WIDTH - 1 downto 0);
   signal r_element2_posit_hi, r_element2_posit_lo : std_logic_vector(REG_WIDTH - 1 downto 0);
 
-  signal r_batch_offset : std_logic_vector(REG_WIDTH - 1 downto 0);  -- To retrieve the correct data from Arrow columns
+  signal r_operation : std_logic_vector(REG_WIDTH - 1 downto 0);
 
   -----------------------------------------------------------------------------
   -- ELEMENT STREAMS
@@ -469,14 +469,15 @@ begin
       r_element2_off_hi <= element2_off_hi;
       r_element2_off_lo <= element2_off_lo;
 
+      -- Operation
+      r_operation <= operation;
+
       -- Data Buffer Addresses
       r_element1_posit_hi <= element1_posit_hi;
       r_element1_posit_lo <= element1_posit_lo;
 
       r_element2_posit_hi <= element2_posit_hi;
       r_element2_posit_lo <= element2_posit_lo;
-
-      r_batch_offset <= batch_offset;
 
       if control_reset = '1' then
         cu_reset(r);
@@ -575,6 +576,7 @@ begin
                         str_element1_elem_in, str_element2_elem_in,
                         r_element1_off_hi, r_element1_off_lo, r_element2_off_hi, r_element2_off_lo,
                         r_element1_posit_hi, r_element1_posit_lo, r_element2_posit_hi, r_element2_posit_lo,
+                        r_operation,
                         r_control_start,
                         r_control_reset)
     variable v            : cu_int;
@@ -683,11 +685,11 @@ begin
         cr2_v.command_element.ctrl(31 downto 0)  := r_element2_posit_lo;
 
         -- First and Last index for elements and reads
-        cr1_v.command_element.firstIdx := slv(int(r_batch_offset) + int(r.wed.batches) - 1, INDEX_WIDTH_ELEMENT);
-        cr1_v.command_element.lastIdx  := slv(int(r_batch_offset) + int(r.wed.batches), INDEX_WIDTH_ELEMENT);
+        cr1_v.command_element.firstIdx := slv(int(r.wed.batches) - 1, INDEX_WIDTH_ELEMENT);
+        cr1_v.command_element.lastIdx  := slv(int(r.wed.batches), INDEX_WIDTH_ELEMENT);
 
-        cr2_v.command_element.firstIdx := slv(int(r_batch_offset) + int(r.wed.batches) - 1, INDEX_WIDTH_ELEMENT);
-        cr2_v.command_element.lastIdx  := slv(int(r_batch_offset) + int(r.wed.batches), INDEX_WIDTH_ELEMENT);
+        cr2_v.command_element.firstIdx := slv(int(r.wed.batches) - 1, INDEX_WIDTH_ELEMENT);
+        cr2_v.command_element.lastIdx  := slv(int(r.wed.batches), INDEX_WIDTH_ELEMENT);
 
         -- Make command valid
         cr1_v.command_element.valid := '1';
@@ -717,6 +719,8 @@ begin
         -- Ready to receive posit
         cr1_v.str_element_elem_out.posit.ready := '1';
         cr2_v.str_element_elem_out.posit.ready := '1';
+
+        v.operation := op2op(r_operation);
 
         -- Store the input vector length
         if cr1_v.str_element_elem_in.len.valid = '1' then
@@ -980,7 +984,7 @@ begin
   --   |_____/ \___|_| |_|\___|\__,_|\__,_|_|\___|_|
   ---------------------------------------------------------------------------------------------------
 
-  scheduler_comb : process(r, re, rs, accum_result, posit_done_accum, posit_done_accum_final)
+  scheduler_comb : process(r, re, rs, accum_result, r_operation, posit_done_accum, posit_done_accum_final)
     variable vs : cu_sched;
   begin
     vs := rs;
@@ -1003,10 +1007,11 @@ begin
         -- Gather the lengths from other clock domain
         vs.element1_reads := r.element1_reads(31 downto 0);
         vs.element2_reads := r.element2_reads(31 downto 0);
+        vs.operation := r.operation;
 
         vs.accum_pass_cnt := (others => '0');
 
-        if r.filled = '1' and rs.accum_cnt = 14 then
+        if r.filled = '1' and rs.accum_cnt = 14 and rs.operation /= INVALID_OP then
           vs.element_fifo_rd := '1';
           vs.state           := SCHED_STARTUP;
         end if;
@@ -1078,6 +1083,7 @@ begin
       when SCHED_DONE =>
         vs.accum_cnt := (others => '0');
         vs.state     := SCHED_IDLE;
+        vs.operation := INVALID_OP;
 
       when others =>
         null;

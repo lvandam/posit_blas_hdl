@@ -146,13 +146,13 @@ architecture arrow_positdot of arrow_positdot is
   --   1 element2 vbmp address        =  2
   --   1 element2 data address       =  2
   ----------------------------------- Buffer addresses
-  --   8 result data address       =  16
+  --   1 result data address       =  2
   ----------------------------------- Custom registers (arguments)
-  --   8 batch offsets                   =  8
+  --   1 operation                  =  2
   --   1 result                     =  2
   -----------------------------------
-  -- Total:                          44 regs
-  constant NUM_FLETCHER_REGS : natural := 44;
+  -- Total:                          24 regs
+  constant NUM_FLETCHER_REGS : natural := 24;
 
   -- The LSB index in the slave address
   constant SLV_ADDR_LSB : natural := log2floor(SLV_BUS_DATA_WIDTH / 4) - 1;
@@ -200,33 +200,19 @@ architecture arrow_positdot of arrow_positdot is
   constant REG_RESULT_DATA_ADDR_HI : natural := 18;
   constant REG_RESULT_DATA_ADDR_LO : natural := 19;
 
-  -- 20, 21
-
-  -- 22, 23
-
-  -- 24, 25
-
-  -- 26, 27
-
-  -- 28, 29
-
-  -- 30, 31
-
-  -- 32, 33
-
-  -- Batch offsets
-  constant REG_BATCH_OFFSET : natural := 34;
-
   -- Result
-  constant REG_RESULT_OFFSET : natural := 42;
+  constant REG_RESULT_OFFSET : natural := 20;
+
+  -- Operation
+  constant REG_OPERATION_OFFSET : natural := 22;
 
   -- The offsets of the bits to signal busy and done for each of the units
   constant STATUS_BUSY_OFFSET : natural := 0;
-  constant STATUS_DONE_OFFSET : natural := CORES;
+  constant STATUS_DONE_OFFSET : natural := 1;
 
   -- The offsets of the bits to signal start and reset to each of the units
   constant CONTROL_START_OFFSET : natural := 0;
-  constant CONTROL_RESET_OFFSET : natural := CORES;
+  constant CONTROL_RESET_OFFSET : natural := 1;
 
   -- Memory mapped register file
   type mm_regs_t is array (0 to NUM_FLETCHER_REGS - 1) of std_logic_vector(SLV_BUS_DATA_WIDTH - 1 downto 0);
@@ -265,7 +251,7 @@ architecture arrow_positdot of arrow_positdot is
   signal reg_array_element2_posit_hi, reg_array_element2_posit_lo : reg_array_t;
 
   -- Batch offset (to fetch from Arrow)
-  signal reg_array_batch_offset : reg_array_t;
+  signal reg_array_operation : reg_array_t;
 
   -- Result array
   signal result_array : reg_array_t;
@@ -419,7 +405,7 @@ begin
         reg_array_element2_posit_hi (I) <= mm_regs(REG_ELEMENT2_POSIT_ADDR_HI);
         reg_array_element2_posit_lo (I) <= mm_regs(REG_ELEMENT2_POSIT_ADDR_LO);
 
-        reg_array_batch_offset (I) <= mm_regs(REG_BATCH_OFFSET + I);
+        reg_array_operation (I) <= mm_regs(REG_OPERATION_OFFSET + I);
       end loop;
     end if;
   end process;
@@ -559,10 +545,9 @@ begin
         element2_posit_hi => reg_array_element2_posit_hi (I),
         element2_posit_lo => reg_array_element2_posit_lo (I),
 
-        -- Batch offset (to fetch from Arrow)
-        batch_offset => reg_array_batch_offset (I),
-
         result => result_array (I),
+
+        operation => reg_array_operation (I),
 
         ---------------------------------------------------------------------------
         -- Master bus Element vector 1

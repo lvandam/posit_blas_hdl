@@ -38,20 +38,31 @@ PositArithUserCore::PositArithUserCore(std::shared_ptr<fletcher::FPGAPlatform> p
         }
 }
 
+void PositArithUserCore::set_operation(Operation op) {
+        uint32_t opcode = op;
+        reg_conv_t reg;
+
+        reg.half.hi = 0;
+        reg.half.lo = opcode;
+
+        this->platform()->write_mmio(REG_OPERATION_OFFSET, reg.full);
+
+}
+
 void PositArithUserCore::set_batch_offsets(std::vector<uint32_t>& offsets) {
-        for (int i = 0; i < MAX_CORES / 2; i++) {
-            reg_conv_t reg;
-
-            if(i < CORES) {
-                reg.half.hi = offsets[2 * i];
-                reg.half.lo = offsets[2 * i + 1];
-            } else {
-                reg.half.hi = 0x00000000;
-                reg.half.lo = 0x00000000;
-            }
-
-            this->platform()->write_mmio(REG_BATCH_OFFSET + i, reg.full);
-        }
+        // for (int i = 0; i < MAX_CORES / 2; i++) {
+        //     reg_conv_t reg;
+        //
+        //     if(i < CORES) {
+        //         reg.half.hi = offsets[2 * i];
+        //         reg.half.lo = offsets[2 * i + 1];
+        //     } else {
+        //         reg.half.hi = 0x00000000;
+        //         reg.half.lo = 0x00000000;
+        //     }
+        //
+        //     this->platform()->write_mmio(REG_BATCH_OFFSET + i, reg.full);
+        // }
 }
 
 void PositArithUserCore::control_zero()

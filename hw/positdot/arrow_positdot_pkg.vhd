@@ -20,6 +20,7 @@ library work;
 use work.Utils.all;
 
 package arrow_positdot_pkg is
+
   -----------------------------------------------------------------------------
   -- Bus interfaces
   -----------------------------------------------------------------------------
@@ -238,11 +239,11 @@ package arrow_positdot_pkg is
         element2_off_hi, element2_off_lo     : in std_logic_vector(REG_WIDTH-1 downto 0);
         element2_posit_hi, element2_posit_lo : in std_logic_vector(REG_WIDTH-1 downto 0);
 
-        -- Batch offset (to fetch from Arrow)
-        batch_offset : in std_logic_vector(REG_WIDTH-1 downto 0);
-
         -- Result array
         result : out std_logic_vector(REG_WIDTH-1 downto 0);
+
+        -- Operation
+        operation : in std_logic_vector(REG_WIDTH-1 downto 0);
 
         ---------------------------------------------------------------------------
         -- Master bus posit vector 1
@@ -353,4 +354,5 @@ package arrow_positdot_pkg is
 end package;
 
 package body arrow_positdot_pkg is
+
 end package body arrow_positdot_pkg;

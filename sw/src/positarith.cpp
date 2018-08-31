@@ -274,7 +274,6 @@ int main(int argc, char ** argv)
         return 0;
 }
 
-
 /**
  * Vector dot product
  */
@@ -314,7 +313,8 @@ double vector_dot(std::vector<posit<NBITS, ES>>& vector1, std::vector<posit<NBIT
         uc.reset();
 
         // Configure the cores
-        // TODO set the operation
+        DEBUG_PRINT("Setting operation...\n");
+        uc.set_operation(VECTOR_DOT);
 
         // Run
         start = omp_get_wtime();

@@ -27,9 +27,11 @@
 
 #define REG_RESULT_DATA_OFFSET 9
 
-#define REG_BATCH_OFFSET 17
+#define REG_RESULT_OFFSET 10
 
-#define REG_RESULT_OFFSET 21
+#define REG_OPERATION_OFFSET 11
+
+enum Operation { INVALID_OP = 0, VECTOR_DOT = 1 };
 
 /**
  * \class PositArithUserCore
@@ -43,6 +45,8 @@ public:
  * \param platform  The platform to run the core on.
  */
 PositArithUserCore(std::shared_ptr<fletcher::FPGAPlatform> platform);
+
+void set_operation(Operation op);
 
 void set_batch_offsets(std::vector<uint32_t>& offsets);
 

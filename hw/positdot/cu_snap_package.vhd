@@ -7,6 +7,9 @@ use work.posit_package.all;
 
 package cu_snap_package is
 
+type op_type is (INVALID_OP, VECTOR_DOT);
+function op2op (a      : in std_logic_vector(31 downto 0)) return op_type;
+
   constant MAX_BATCHES : natural := 3;
 
   type wed_type is record
@@ -29,6 +32,8 @@ package cu_snap_package is
   type cu_int is record
     state : cu_state;
     wed   : wed_type;
+
+    operation: op_type;
 
     element1_reads      : unsigned(31 downto 0);
     element2_reads      : unsigned(31 downto 0);
@@ -72,6 +77,7 @@ package cu_snap_package is
     valid     : std_logic;              -- Valid bit
     startflag : std_logic;
 
+    operation : op_type;
     element1_reads     : unsigned(31 downto 0);
     element2_reads     : unsigned(31 downto 0);
     accum_cnt          : unsigned(3 downto 0);
@@ -90,6 +96,7 @@ package cu_snap_package is
     state              => SCHED_IDLE,
     valid              => '0',
     startflag          => '0',
+    operation          => INVALID_OP,
     element1_reads     => (others => '0'),
     element2_reads     => (others => '0'),
     accum_cnt          => (others => '0'),
@@ -172,9 +179,19 @@ package cu_snap_package is
 end package cu_snap_package;
 
 package body cu_snap_package is
+    function op2op (a      : in std_logic_vector(31 downto 0)) return op_type is
+    begin
+        case a is
+          when x"00000001" => return VECTOR_DOT;
+          when others     => return INVALID_OP;
+        end case;
+    end function;
+
   procedure cu_reset (signal r : inout cu_int) is
   begin
     r.state <= LOAD_IDLE;
+
+    r.operation <= INVALID_OP;
 
     r.element1_reads <= (others => '0');
     r.element1_data  <= (others => '0');

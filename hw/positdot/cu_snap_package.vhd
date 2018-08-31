@@ -7,7 +7,7 @@ use work.posit_package.all;
 
 package cu_snap_package is
 
-  type op_type is (INVALID_OP, VECTOR_DOT, VECTOR_ADD);
+  type op_type is (INVALID_OP, VECTOR_DOT, VECTOR_ADD, VECTOR_MULT);
   function op2op (a : in std_logic_vector(31 downto 0)) return op_type;
 
   constant MAX_BATCHES : natural := 3;
@@ -72,7 +72,8 @@ package cu_snap_package is
     SCHED_VECTOR_DOT_FINAL_ACCUM,
 
     SCHED_VECTOR_ADD_PROCESSING,
-    -- SCHED_VECTOR_ADD_LAST,
+
+    SCHED_VECTOR_MULT_PROCESSING,
 
     SCHED_DONE
     );
@@ -191,6 +192,7 @@ package body cu_snap_package is
     case a is
       when x"00000001" => return VECTOR_DOT;
       when x"00000002" => return VECTOR_ADD;
+      when x"00000003" => return VECTOR_MULT;
       when others      => return INVALID_OP;
     end case;
   end function;

@@ -383,8 +383,8 @@ architecture positdot_unit of positdot_unit is
   signal product                                                                  : value_product;
   signal sum                                                                      : value_sum;
   signal accum_result_raw, accum_final_result_raw                                 : value_accum_prod;
-  signal accum_result, sum_result                                                 : std_logic_vector(POSIT_NBITS-1 downto 0);
-  signal accum_inf, accum_zero, sum_inf, sum_zero                                 : std_logic;
+  signal accum_result, sum_result, product_result                                                 : std_logic_vector(POSIT_NBITS-1 downto 0);
+  signal accum_inf, accum_zero, sum_inf, sum_zero, product_inf, product_zero                                 : std_logic;
   signal posit_done_mul, posit_done_add, posit_done_accum, posit_done_accum_final : std_logic;
   signal posit_add_truncated                                                      : std_logic;
   signal posit_truncated_accum, posit_truncated_accum_final                       : std_logic;
@@ -1270,6 +1270,7 @@ begin
         case r.operation is  -- Determine number of results per operation
           when VECTOR_DOT => vs.result_length := to_unsigned(1, 32);
           when VECTOR_ADD => vs.result_length := align_aeq(r.element1_reads, 3);
+          when VECTOR_MULT => vs.result_length := align_aeq(r.element1_reads, 3);
           when others     => vs.result_length := (others => '0');
         end case;
 
@@ -1288,6 +1289,7 @@ begin
           case r.operation is
             when VECTOR_DOT => vs.state := SCHED_VECTOR_DOT_PROCESSING;
             when VECTOR_ADD => vs.state := SCHED_VECTOR_ADD_PROCESSING;
+            when VECTOR_MULT => vs.state := SCHED_VECTOR_MULT_PROCESSING;
             when others     => vs.state := SCHED_WAIT_START;
           end case;
         end if;
@@ -1377,6 +1379,30 @@ begin
           end if;
         end if;
 
+      -- VECTOR MULTIPLICATION STATES
+      when SCHED_VECTOR_MULT_PROCESSING =>
+        -- Unset the startflag
+        vs.startflag := '0';
+
+        if re.element1_fifo.c.prog_empty = '0' and re.element2_fifo.c.prog_empty = '0' and re.element1_fifo.c.rd_rst_busy = '0' and re.element2_fifo.c.rd_rst_busy = '0' then
+          vs.element_fifo_rd := '1';
+        end if;
+
+        if posit_done_mul = '1' then
+          vs.accum_pass_cnt := rs.accum_pass_cnt + 1;
+          dumpStdOut("PASS " & integer'image(int(vs.accum_pass_cnt)));
+
+          vs.accum_write        := '1';
+          vs.accum_write_result := product_result;
+
+          if rs.accum_pass_cnt = align_aeq(rs.element1_reads, 3) - 1
+            and (re.element1_fifo.c.empty = '1' or re.element2_fifo.c.empty = '1')
+            and rs.startflag = '0'
+          then
+            vs.state := SCHED_DONE;
+          end if;
+        end if;
+
       when others =>
         null;
 
@@ -1457,6 +1483,26 @@ begin
       start  => el1_el2_valid,
       result => product,
       done   => posit_done_mul
+      );
+  end generate;
+
+  -- POSIT PRODUCT NORMALIZATION
+  gen_normalize_product_es2 : if POSIT_ES = 2 generate
+    posit_normalize_product_es2_inst : posit_normalize_prod port map (
+      in1       => product,
+      truncated => '0',
+      result    => product_result,
+      inf       => product_inf,
+      zero      => product_zero
+      );
+  end generate;
+  gen_normalize_product_es3 : if POSIT_ES = 3 generate
+    posit_normalize_product_es3_inst : posit_normalize_prod_es3 port map (
+      in1       => product,
+      truncated => '0',
+      result    => product_result,
+      inf       => product_inf,
+      zero      => product_zero
       );
   end generate;
 

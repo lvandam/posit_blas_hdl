@@ -776,10 +776,6 @@ double vector_sub(std::vector<posit<NBITS, ES>>& vector1, posit<NBITS, ES>& scal
         return t_fpga;
 }
 
-
-
-
-
 /**
  * Vector Sum
  */
@@ -874,6 +870,206 @@ double vector_sum(std::vector<posit<NBITS, ES>>& vector1, posit<NBITS, ES>& resu
         uc.reset();
 
         result = results_posit[0];
+
+        return t_fpga;
+}
+
+/**
+ * Vector Multiplication
+ */
+double vector_mult(std::vector<posit<NBITS, ES>>& vector1, std::vector<posit<NBITS, ES>>& vector2, std::vector<posit<NBITS, ES>>& result)
+{
+        int rc = 0;
+        // Times
+        double start, stop;
+        double t_fpga = 0.0;
+
+        flush(cout);
+
+        if(vector1.size() != vector2.size()) {
+            throw domain_error("Unequal input vector lengths");
+        }
+
+        int num_result_rows = roundToMultiple(vector1.size(), 8);
+        int num_results = vector1.size();
+
+        bool calculate_sw = true;
+
+        DEBUG_PRINT("Creating Arrow table...\n");
+        shared_ptr<arrow::Table> table_elements = create_table_elements(vector1, vector2);
+
+        // Create a platform
+        shared_ptr<fletcher::SNAPPlatform> platform(new fletcher::SNAPPlatform());
+
+        DEBUG_PRINT("Preparing column buffers...\n");
+        // Prepare the colummn buffers
+        std::vector<std::shared_ptr<arrow::Column> > columns;
+        columns.push_back(table_elements->column(0));
+        columns.push_back(table_elements->column(1));
+        platform->prepare_column_chunks(columns);
+
+        // Create a UserCore
+        DEBUG_PRINT("Creating UserCore instance...\n");
+        PositArithUserCore uc(static_pointer_cast<fletcher::FPGAPlatform>(platform));
+
+        // Reset UserCore
+        uc.reset();
+
+        // Write result buffer addresses
+        // Create arrays for results to be written to
+        uint32_t* result_hw;
+        rc = posix_memalign((void * * ) &result_hw, BURST_LENGTH, sizeof(uint32_t) * num_result_rows);
+        // clear values buffer
+        for (uint32_t i = 0; i < num_result_rows; i++) {
+                result_hw[i] = 0xDEADBEEF;
+        }
+        addr_lohi val;
+        val.full = (uint64_t) result_hw;
+        platform->write_mmio(REG_RESULT_DATA_OFFSET, val.full);
+
+        // Configure the cores
+        DEBUG_PRINT("Setting operation...\n");
+        uc.set_operation(VECTOR_MULT);
+
+        // Run
+        start = omp_get_wtime();
+        uc.start();
+
+#ifdef DEBUG
+        uc.wait_for_finish(1000000);
+#else
+        uc.wait_for_finish();
+#endif
+
+        // Wait for last result
+        do {
+#ifdef DEBUG
+            cout << "==================================" << endl;
+            for(int j = 0; j < num_result_rows; j++) {
+                    cout << dec << j <<": " << hex << result_hw[j] << dec <<endl;
+            }
+            cout << "==================================" << endl;
+            cout << endl;
+#endif
+
+            usleep(1);
+        }
+        while ((result_hw[num_result_rows - 1] == 0xDEADBEEF));
+
+        stop = omp_get_wtime();
+        t_fpga = stop - start;
+
+        // Parse posits
+        std::vector<posit<NBITS,ES>> results_posit;
+        results_posit.resize(num_results);
+        for(int i = 0; i < num_results; i++) {
+            posit<NBITS, ES> result_posit;
+            result_posit.set_raw_bits(result_hw[i]);
+            results_posit[i] = result_posit;
+        }
+
+        // Reset UserCore
+        uc.reset();
+
+        result = results_posit;
+
+        return t_fpga;
+}
+
+/**
+ * Vector Multiplication Scalar
+ */
+double vector_mult(std::vector<posit<NBITS, ES>>& vector1, posit<NBITS, ES>& scalar, std::vector<posit<NBITS, ES>>& result)
+{
+        int rc = 0;
+        // Times
+        double start, stop;
+        double t_fpga = 0.0;
+
+        flush(cout);
+
+        int num_result_rows = roundToMultiple(vector1.size(), 8);
+        int num_results = vector1.size();
+
+        bool calculate_sw = true;
+
+        DEBUG_PRINT("Creating Arrow table...\n");
+        shared_ptr<arrow::Table> table_elements = create_table_elements(vector1, scalar);
+
+        // Create a platform
+        shared_ptr<fletcher::SNAPPlatform> platform(new fletcher::SNAPPlatform());
+
+        DEBUG_PRINT("Preparing column buffers...\n");
+        // Prepare the colummn buffers
+        std::vector<std::shared_ptr<arrow::Column> > columns;
+        columns.push_back(table_elements->column(0));
+        columns.push_back(table_elements->column(1));
+        platform->prepare_column_chunks(columns);
+
+        // Create a UserCore
+        DEBUG_PRINT("Creating UserCore instance...\n");
+        PositArithUserCore uc(static_pointer_cast<fletcher::FPGAPlatform>(platform));
+
+        // Reset UserCore
+        uc.reset();
+
+        // Write result buffer addresses
+        // Create arrays for results to be written to
+        uint32_t* result_hw;
+        rc = posix_memalign((void * * ) &result_hw, BURST_LENGTH, sizeof(uint32_t) * num_result_rows);
+        // clear values buffer
+        for (uint32_t i = 0; i < num_result_rows; i++) {
+                result_hw[i] = 0xDEADBEEF;
+        }
+        addr_lohi val;
+        val.full = (uint64_t) result_hw;
+        platform->write_mmio(REG_RESULT_DATA_OFFSET, val.full);
+
+        // Configure the cores
+        DEBUG_PRINT("Setting operation...\n");
+        uc.set_operation(VECTOR_MULT);
+
+        // Run
+        start = omp_get_wtime();
+        uc.start();
+
+#ifdef DEBUG
+        uc.wait_for_finish(1000000);
+#else
+        uc.wait_for_finish();
+#endif
+
+        // Wait for last result
+        do {
+#ifdef DEBUG
+            cout << "==================================" << endl;
+            for(int j = 0; j < num_result_rows; j++) {
+                    cout << dec << j <<": " << hex << result_hw[j] << dec <<endl;
+            }
+            cout << "==================================" << endl;
+            cout << endl;
+#endif
+
+            usleep(1);
+        }
+        while ((result_hw[num_result_rows - 1] == 0xDEADBEEF));
+
+        stop = omp_get_wtime();
+        t_fpga = stop - start;
+
+        // Parse posits
+        std::vector<posit<NBITS,ES>> results_posit;
+        results_posit.resize(num_results);
+        for(int i = 0; i < num_results; i++) {
+            posit<NBITS, ES> result_posit;
+            result_posit.set_raw_bits(result_hw[i]);
+            results_posit[i] = result_posit;
+        }
+
+        // Reset UserCore
+        uc.reset();
+
+        result = results_posit;
 
         return t_fpga;
 }

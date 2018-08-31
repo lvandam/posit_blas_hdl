@@ -8,7 +8,7 @@ using namespace sw::unum;
 
 // POSIT CONFIGURATION
 #define NBITS 32
-#define ES 2
+#define ES 3
 
 #ifndef DEBUG_PRECISION
 #define DEBUG_PRECISION 40

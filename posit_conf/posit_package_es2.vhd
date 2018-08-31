@@ -36,6 +36,7 @@ package posit_package is
   function prod2val (a : in value_product) return value;
   function sum2val (a  : in value_sum) return value;
   function accum2val (a : in value_accum) return value;
+  -- function prodsum2val (a : in value_prod_sum) return value;
 
 end package;
 
@@ -77,6 +78,44 @@ package body posit_package is
     assert signed(tmp(36 downto 29)) = signed(a(40 downto 33)) report "Scale loss (sum2val), val=" & integer'image(to_integer(signed(tmp(36 downto 29)))) & ", sum=" & integer'image(to_integer(signed(a(40 downto 33)))) severity error;
     return tmp;
   end function sum2val;
+
+    -- Product Sum layout:
+    -- 72 1       sign
+    -- 71 9       scale
+    -- 62 60     fraction
+    -- 2   1       inf
+    -- 1   1       zero
+    -- 0
+    -- function prodsum2val (a : in value_prod_sum) return value is
+    --   variable tmp : std_logic_vector(POSIT_SERIALIZED_WIDTH_ES2-1 downto 0);
+    -- begin
+    --   tmp(0)            := a(0);
+    --   tmp(1)            := a(1);
+    --   tmp(28 downto 2)  := a(61 downto 35);
+    --   tmp(36 downto 29) := a(69 downto 62);
+    --   tmp(37)           := a(71);
+    --   assert signed(tmp(36 downto 29)) = signed(a(69 downto 62)) report "Scale loss (prodsum2val), val=" & integer'image(to_integer(signed(tmp(36 downto 29)))) & ", sum=" & integer'image(to_integer(signed(a(69 downto 62)))) severity error;
+    --   return tmp;
+    -- end function prodsum2val;
+
+    -- Product Sum layout:
+    -- 72 1       sign
+    -- 71 9       scale
+    -- 62 60     fraction
+    -- 2   1       inf
+    -- 1   1       zero
+    -- 0
+    -- function prodsum2val (a : in value_prod_sum) return value is
+    --   variable tmp : std_logic_vector(POSIT_SERIALIZED_WIDTH_ES2-1 downto 0);
+    -- begin
+    --   tmp(0)            := a(0);
+    --   tmp(1)            := a(1);
+    --   tmp(28 downto 2)  := a(61 downto 35);
+    --   tmp(36 downto 29) := a(69 downto 62);
+    --   tmp(37)           := a(71);
+    --   assert signed(tmp(36 downto 29)) = signed(a(69 downto 62)) report "Scale loss (prodsum2val), val=" & integer'image(to_integer(signed(tmp(36 downto 29)))) & ", sum=" & integer'image(to_integer(signed(a(69 downto 62)))) severity error;
+    --   return tmp;
+    -- end function prodsum2val;
 
   -- Accum layout:
   -- 158 1       sign

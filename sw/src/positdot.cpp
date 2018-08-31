@@ -40,10 +40,6 @@
   #define PLATFORM 0
 #endif
 
-#ifndef DEBUG
-    #define DEBUG 0
-#endif
-
 /* Burst step length in bytes */
 #define BURST_LENGTH 32
 
@@ -101,6 +97,7 @@ int main(int argc, char ** argv)
             // Some simple test case
             posit<NBITS, ES> pos1, pos2;
             pos1.set_raw_bits(i);
+            pos1 = pos1 * 1e26;
             pos2.set_raw_bits(i * 2);
             pos2 = pos2 * 1e26;
 
@@ -175,7 +172,7 @@ int main(int argc, char ** argv)
 #ifdef DEBUG
         uc.wait_for_finish(1000000);
 #else
-        uc.wait_for_finish(10);
+        uc.wait_for_finish();
 #endif
 
         // Read result from MMIO

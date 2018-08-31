@@ -50,6 +50,9 @@ entity positdot_unit is
     element2_off_hi, element2_off_lo     : in std_logic_vector(REG_WIDTH-1 downto 0);
     element2_posit_hi, element2_posit_lo : in std_logic_vector(REG_WIDTH-1 downto 0);
 
+    -- Result buffer address
+    result_data_hi, result_data_lo : in std_logic_vector(REG_WIDTH-1 downto 0);
+
     -- Result array
     result : out std_logic_vector(REG_WIDTH-1 downto 0);
 
@@ -86,7 +89,23 @@ entity positdot_unit is
     bus_element2_rsp_resp  : in  std_logic_vector(1 downto 0);
     bus_element2_rsp_last  : in  std_logic;
     bus_element2_rsp_valid : in  std_logic;
-    bus_element2_rsp_ready : out std_logic
+    bus_element2_rsp_ready : out std_logic;
+
+    ---------------------------------------------------------------------------
+    -- Master bus Result
+    ---------------------------------------------------------------------------
+    -- Write request channel
+    bus_result_wreq_addr  : out std_logic_vector(BUS_ADDR_WIDTH-1 downto 0);
+    bus_result_wreq_len   : out std_logic_vector(BUS_LEN_WIDTH-1 downto 0);
+    bus_result_wreq_valid : out std_logic;
+    bus_result_wreq_ready : in  std_logic;
+
+    -- Write response channel
+    bus_result_wdat_data   : out std_logic_vector(BUS_DATA_WIDTH-1 downto 0);
+    bus_result_wdat_strobe : out std_logic_vector(BUS_DATA_WIDTH/8-1 downto 0);
+    bus_result_wdat_last   : out std_logic;
+    bus_result_wdat_valid  : out std_logic;
+    bus_result_wdat_ready  : in  std_logic
     );
 end positdot_unit;
 
@@ -107,6 +126,8 @@ architecture positdot_unit of positdot_unit is
 
   signal r_element2_off_hi, r_element2_off_lo     : std_logic_vector(REG_WIDTH - 1 downto 0);
   signal r_element2_posit_hi, r_element2_posit_lo : std_logic_vector(REG_WIDTH - 1 downto 0);
+
+  signal r_result_data_hi, r_result_data_lo : std_logic_vector(REG_WIDTH - 1 downto 0);
 
   signal r_operation : std_logic_vector(REG_WIDTH - 1 downto 0);
 
@@ -209,6 +230,97 @@ architecture positdot_unit of positdot_unit is
   signal cmd_element1_ready, cmd_element2_ready : std_logic;
 
   -----------------------------------------------------------------------------
+  -- RESULT STREAMS
+  -----------------------------------------------------------------------------
+  -----------------------------------------------------------------------------
+  -- Result ColumnWriter Interface
+  -----------------------------------------------------------------------------
+  constant INDEX_WIDTH_RESULT      : natural := 32;
+  constant VALUE_ELEM_WIDTH_RESULT : natural := 32;
+  constant VALUES_PER_CYCLE_RESULT : natural := 1;
+  constant NUM_STREAMS_RESULT      : natural := 1;  -- data stream
+  constant VALUES_WIDTH_RESULT     : natural := VALUE_ELEM_WIDTH_RESULT * VALUES_PER_CYCLE_RESULT;
+  constant TAG_WIDTH_RESULT        : natural := 1;
+
+  signal in_result_valid  : std_logic_vector(NUM_STREAMS_RESULT - 1 downto 0);
+  signal in_result_ready  : std_logic_vector(NUM_STREAMS_RESULT - 1 downto 0);
+  signal in_result_last   : std_logic_vector(NUM_STREAMS_RESULT - 1 downto 0);
+  signal in_result_dvalid : std_logic_vector(NUM_STREAMS_RESULT - 1 downto 0);
+  signal in_result_data   : std_logic_vector(VALUES_WIDTH_RESULT - 1 downto 0);
+
+  -- Command Stream
+  type command_result_t is record
+    valid    : std_logic;
+    tag      : std_logic_vector(TAG_WIDTH_RESULT - 1 downto 0);
+    firstIdx : std_logic_vector(INDEX_WIDTH_RESULT - 1 downto 0);
+    lastIdx  : std_logic_vector(INDEX_WIDTH_RESULT - 1 downto 0);
+    ctrl     : std_logic_vector(BUS_ADDR_WIDTH - 1 downto 0);
+  end record;
+
+  type result_data_stream_out_t is record
+    valid  : std_logic;
+    dvalid : std_logic;
+    last   : std_logic;
+    data   : std_logic_vector(VALUES_WIDTH_RESULT - 1 downto 0);
+  end record;
+
+  type result_data_stream_in_t is record
+    ready : std_logic;
+  end record;
+
+  type str_result_elem_in_t is record
+    data : result_data_stream_in_t;
+  end record;
+
+  type str_result_elem_out_t is record
+    data : result_data_stream_out_t;
+  end record;
+
+  procedure conv_streams_result_out (
+    signal valid               : out std_logic_vector(NUM_STREAMS_RESULT - 1 downto 0);
+    signal dvalid              : out std_logic_vector(NUM_STREAMS_RESULT - 1 downto 0);
+    signal last                : out std_logic_vector(NUM_STREAMS_RESULT - 1 downto 0);
+    signal data                : out std_logic_vector(VALUES_WIDTH_RESULT - 1 downto 0);
+    signal str_result_elem_out : in  str_result_elem_out_t
+    ) is
+  begin
+    valid(0)                               <= str_result_elem_out.data.valid;
+    dvalid(0)                              <= str_result_elem_out.data.dvalid;
+    last(0)                                <= str_result_elem_out.data.last;
+    data(VALUES_WIDTH_RESULT - 1 downto 0) <= str_result_elem_out.data.data;
+  end procedure;
+
+  procedure conv_streams_result_in (
+    signal str_result_elem_in : out str_result_elem_in_t;
+    signal in_ready           : in  std_logic_vector(NUM_STREAMS_RESULT - 1 downto 0)
+    ) is
+  begin
+    str_result_elem_in.data.ready <= in_ready(0);
+  end procedure;
+
+  type unl_record is record
+    ready : std_logic;
+  end record;
+
+  type out_record is record
+    cmd : command_result_t;
+    unl : unl_record;
+  end record;
+
+  signal str_result_elem_in  : str_result_elem_in_t;
+  signal str_result_elem_out : str_result_elem_out_t;
+
+  signal result_cmd_valid    : std_logic;
+  signal result_cmd_ready    : std_logic;
+  signal result_cmd_firstIdx : std_logic_vector(INDEX_WIDTH_RESULT - 1 downto 0);
+  signal result_cmd_lastIdx  : std_logic_vector(INDEX_WIDTH_RESULT - 1 downto 0);
+  signal result_cmd_ctrl     : std_logic_vector(BUS_ADDR_WIDTH - 1 downto 0);
+  signal result_cmd_tag      : std_logic_vector(TAG_WIDTH_RESULT- 1 downto 0);
+  signal result_unlock_valid : std_logic;
+  signal result_unlock_ready : std_logic;
+  signal result_unlock_tag   : std_logic_vector(TAG_WIDTH_RESULT - 1 downto 0);
+
+  -----------------------------------------------------------------------------
   -- UserCore
   -----------------------------------------------------------------------------
   type state_t is (STATE_IDLE, STATE_RESET_START, STATE_REQUEST, STATE_BUSY, STATE_DONE);
@@ -234,11 +346,18 @@ architecture positdot_unit of positdot_unit is
   signal cr1_r, cr1_d : reg;
   signal cr2_r, cr2_d : reg;
 
-  type state_result_t is (IDLE, COLUMNWRITE, WAIT_ACCEPT, UNLOCK);
-
+  type state_result_t is (IDLE, WRITE_VALUE, WAIT_INPUT_READY, WRITE_COMMAND, WAIT_UNLOCK, WRITE_DONE);
   type reg_result is record
-    state       : state_result_t;
-    cs          : cs_t;
+    state : state_result_t;
+    cs    : cs_t;
+
+    result_index : integer;
+
+    command_result : command_result_t;
+
+    str_result_elem_out : str_result_elem_out_t;
+    str_result_elem_in  : str_result_elem_in_t;
+
     reset_units : std_logic;
   end record;
 
@@ -260,7 +379,6 @@ architecture positdot_unit of positdot_unit is
   signal posit_done_mul, posit_done_accum, posit_done_accum_final : std_logic;
   signal posit_truncated_accum, posit_truncated_accum_final       : std_logic;
   signal reset_accum                                              : std_logic;
-  signal result_unlock_valid                                      : std_logic;
 begin
   reset <= not reset_n;
 
@@ -435,6 +553,73 @@ begin
   conv_streams_element_in(out_element2_valid, out_element2_dvalid, out_element2_last, out_element2_data, str_element2_elem_in);
   conv_streams_element_out(str_element2_elem_out, out_element2_ready);
 
+
+    -----------------------------------------------------------------------------
+    -----------------------------------------------------------------------------
+    -- RESULTS
+    -----------------------------------------------------------------------------
+    -----------------------------------------------------------------------------
+    -----------------------------------------------------------------------------
+    -- ColumnWriter
+    -----------------------------------------------------------------------------
+    result_cw : ColumnWriter
+      generic map (
+        BUS_ADDR_WIDTH     => BUS_ADDR_WIDTH,
+        BUS_LEN_WIDTH      => BUS_LEN_WIDTH,
+        BUS_DATA_WIDTH     => BUS_DATA_WIDTH,
+        BUS_STROBE_WIDTH   => BUS_DATA_WIDTH/8,
+        BUS_BURST_STEP_LEN => BUS_BURST_STEP_LEN,
+        BUS_BURST_MAX_LEN  => BUS_BURST_MAX_LEN,
+        INDEX_WIDTH        => INDEX_WIDTH_RESULT,
+        CFG                => "prim(32)",
+        CMD_TAG_ENABLE     => true,
+        CMD_TAG_WIDTH      => TAG_WIDTH_RESULT
+        )
+      port map (
+        bus_clk   => clk,
+        bus_reset => reset,
+        acc_clk   => clk,
+        acc_reset => reset,
+
+        cmd_valid    => result_cmd_valid,
+        cmd_ready    => result_cmd_ready,
+        cmd_firstIdx => result_cmd_firstIdx,
+        cmd_lastIdx  => result_cmd_lastIdx,
+        cmd_ctrl     => result_cmd_ctrl,
+        cmd_tag      => result_cmd_tag,
+
+        unlock_valid => result_unlock_valid,
+        unlock_ready => result_unlock_ready,
+        unlock_tag   => result_unlock_tag,
+
+        bus_wreq_valid => bus_result_wreq_valid,
+        bus_wreq_ready => bus_result_wreq_ready,
+        bus_wreq_addr  => bus_result_wreq_addr,
+        bus_wreq_len   => bus_result_wreq_len,
+
+        bus_wdat_valid  => bus_result_wdat_valid,
+        bus_wdat_ready  => bus_result_wdat_ready,
+        bus_wdat_data   => bus_result_wdat_data,
+        bus_wdat_strobe => bus_result_wdat_strobe,
+        bus_wdat_last   => bus_result_wdat_last,
+
+        in_valid  => in_result_valid,
+        in_ready  => in_result_ready,
+        in_last   => in_result_last,
+        in_dvalid => in_result_dvalid,
+        in_data   => in_result_data
+        );
+
+    -----------------------------------------------------------------------------
+    -- Stream Conversion
+    -----------------------------------------------------------------------------
+    -- Output
+    str_result_elem_out <= cw_d.str_result_elem_out;
+
+    -- Convert the stream inputs and outputs to something readable
+    conv_streams_result_out(in_result_valid, in_result_dvalid, in_result_last, in_result_data, str_result_elem_out);
+    conv_streams_result_in(str_result_elem_in, in_result_ready);
+
 ---------------------------------------------------------------------------------------------------
 --    ____        _       _       _                     _
 --   |  _ \      | |     | |     | |                   | |
@@ -479,6 +664,9 @@ begin
       r_element2_posit_hi <= element2_posit_hi;
       r_element2_posit_lo <= element2_posit_lo;
 
+      r_result_data_hi <= result_data_hi;
+      r_result_data_lo <= result_data_lo;
+
       if control_reset = '1' then
         cu_reset(r);
         cr1_r.reset_units <= '1';
@@ -488,84 +676,6 @@ begin
       end if;
     end if;
   end process;
-
-  result_write_comb : process(cw_r,
-                              re,
-                              control_start,
-                              result_unlock_valid)
-
-    variable cw_v : reg_result;
-  begin
-    cw_v := cw_r;
-
-    result_unlock_valid <= '0';
-    result_write        <= (others => '0');
-    result_write_valid  <= '0';
-
-    case cw_r.state is
-      when IDLE =>
-        re.outfifo.c.rd_en <= '0';
-        if control_start = '1' then
-          -- cw_v.cs.reset_start := '1';
-          cw_v.state   := COLUMNWRITE;
-          cw_v.cs.busy := '1';
-        end if;
-
-      when COLUMNWRITE =>
-        -- Write in case of valid output FIFO data
-        if(re.outfifo.c.empty = '0') then
-          result_write       <= re.outfifo.dout;
-          result_write_valid <= '1';
-          re.outfifo.c.rd_en <= '1';
-
-          cw_v.state := WAIT_ACCEPT;
-        end if;
-
-      when WAIT_ACCEPT =>
-        re.outfifo.c.rd_en <= '0';
-        -- Command is accepted, wait for unlock.
-        cw_v.state         := UNLOCK;
-
-      when UNLOCK =>
-        result_unlock_valid <= '1';
-        cw_v.state          := COLUMNWRITE;
-        cw_v.cs.busy        := '0';
-    end case;
-
-    -- Registered outputs
-    cw_d <= cw_v;
-  end process;
-
-  result_write_seq : process(clk, r.wed.batches_total, result_unlock_valid, result_write_valid) is
-    variable result_count : integer range 0 to MAX_BATCHES := 0;
-  begin
-    if rising_edge(clk) then
-      cw_r <= cw_d;
-
-      if(result_write_valid = '1') then
-        r_result <= result_write;
-      end if;
-
-      if result_unlock_valid = '1' then
-        result_count := result_count + 1;
-        if(result_count = to_integer(r.wed.batches_total)) then
-          cw_r.cs.done <= '1';
-        end if;
-      end if;
-
-      -- Reset
-      if reset = '1' then
-        cw_r.state   <= IDLE;
-        cw_r.cs.busy <= '0';
-        cw_r.cs.done <= '0';
-
-        r_result <= (others => '0');
-
-        result_count := 0;
-      end if;
-    end if;
-  end process;
-
 
   loader_comb : process(r,
                         re.element1_fifo, re.element2_fifo,
@@ -846,6 +956,218 @@ begin
     cr2_d <= cr2_v;
   end process;
 
+
+
+  -- result_write_comb : process(cw_r,
+  --                             re,
+  --                             control_start,
+  --                             result_unlock_valid)
+  --
+  --   variable cw_v : reg_result;
+  -- begin
+  --   cw_v := cw_r;
+  --
+  --   result_unlock_valid <= '0';
+  --   result_write        <= (others => '0');
+  --   result_write_valid  <= '0';
+  --
+  --   case cw_r.state is
+  --     when IDLE =>
+  --       re.outfifo.c.rd_en <= '0';
+  --       if control_start = '1' then
+  --         -- cw_v.cs.reset_start := '1';
+  --         cw_v.state   := COLUMNWRITE;
+  --         cw_v.cs.busy := '1';
+  --       end if;
+  --
+  --     when COLUMNWRITE =>
+  --       -- Write in case of valid output FIFO data
+  --       if(re.outfifo.c.empty = '0') then
+  --         result_write       <= re.outfifo.dout;
+  --         result_write_valid <= '1';
+  --         re.outfifo.c.rd_en <= '1';
+  --
+  --         cw_v.state := WAIT_ACCEPT;
+  --       end if;
+  --
+  --     when WAIT_ACCEPT =>
+  --       re.outfifo.c.rd_en <= '0';
+  --       -- Command is accepted, wait for unlock.
+  --       cw_v.state         := UNLOCK;
+  --
+  --     when UNLOCK =>
+  --       result_unlock_valid <= '1';
+  --       cw_v.state          := COLUMNWRITE;
+  --       cw_v.cs.busy        := '0';
+  --   end case;
+  --
+  --   -- Registered outputs
+  --   cw_d <= cw_v;
+  -- end process;
+  --
+  -- result_write_seq : process(clk, r.wed.batches_total, result_unlock_valid, result_write_valid) is
+  --   variable result_count : integer range 0 to MAX_BATCHES := 0;
+  -- begin
+  --   if rising_edge(clk) then
+  --     cw_r <= cw_d;
+  --
+  --     if(result_write_valid = '1') then
+  --       r_result <= result_write;
+  --     end if;
+  --
+  --     if result_unlock_valid = '1' then
+  --       result_count := result_count + 1;
+  --       if(result_count = to_integer(r.wed.batches_total)) then
+  --         cw_r.cs.done <= '1';
+  --       end if;
+  --     end if;
+  --
+  --     -- Reset
+  --     if reset = '1' then
+  --       cw_r.state   <= IDLE;
+  --       cw_r.cs.busy <= '0';
+  --       cw_r.cs.done <= '0';
+  --
+  --       r_result <= (others => '0');
+  --
+  --       result_count := 0;
+  --     end if;
+  --   end if;
+  -- end process;
+
+
+  result_write_seq : process(clk) is
+  begin
+    if rising_edge(clk) then
+      cw_r <= cw_d;
+      -- Reset
+      if reset = '1' then
+        cw_r.state          <= IDLE;
+        cw_r.cs.reset_start <= '0';
+        cw_r.cs.busy        <= '0';
+        cw_r.cs.done        <= '0';
+        cw_r.result_index   <= 0;
+      end if;
+    end if;
+  end process;
+
+  result_write_comb : process(cw_r,
+                              re,
+                              str_result_elem_in,
+                              control_start,
+                              r_result_data_hi, r_result_data_lo,
+                              result_cmd_ready,
+                              result_unlock_valid, result_unlock_tag)
+    variable cw_v : reg_result;
+    variable o    : out_record;
+  begin
+    cw_v := cw_r;
+
+    -- ColumnWriter inputs:
+    cw_v.str_result_elem_in := str_result_elem_in;
+
+    -- Default ColumnWriter input
+    cw_v.str_result_elem_out.data.valid  := '0';
+    cw_v.str_result_elem_out.data.dvalid := '0';
+    cw_v.str_result_elem_out.data.last   := '0';
+    cw_v.str_result_elem_out.data.data   := x"00000000";
+
+    -- Disable command streams by default
+    o.cmd.valid    := '0';
+    o.cmd.firstIdx := slv(0, VALUES_WIDTH_RESULT);
+    o.cmd.lastIdx  := slv(0, VALUES_WIDTH_RESULT);
+
+    o.unl.ready := '0';
+    o.cmd.tag := (0 => '1', others => '0');
+
+    -- Reset start is low by default.
+    cw_v.cs.reset_start := '0';
+
+    case cw_r.state is
+      when IDLE =>
+        re.outfifo.c.rd_en <= '0';
+        if control_start = '1' then
+          cw_v.cs.reset_start := '1';
+          cw_v.state          := WRITE_COMMAND;
+          cw_v.cs.busy        := '1';
+        end if;
+
+      when WRITE_COMMAND =>
+        o.cmd.firstIdx := slv(0, VALUES_WIDTH_RESULT);
+        o.cmd.lastIdx  := slv(0, VALUES_WIDTH_RESULT);
+        o.cmd.valid    := '1';
+
+        if result_cmd_ready = '1' then
+          -- Command is accepted, wait for unlock
+          cw_v.state := WRITE_VALUE;
+        else
+          cw_v.state := WRITE_COMMAND;
+        end if;
+
+      when WRITE_VALUE =>
+        if re.outfifo.c.valid = '1' then
+          cw_v.str_result_elem_out.data.valid  := '1';
+          cw_v.str_result_elem_out.data.dvalid := '1';
+          cw_v.str_result_elem_out.data.data   := re.outfifo.dout;
+          cw_v.str_result_elem_out.data.last   := '0';
+
+          if cw_r.result_index = to_integer(rs.result_length) - 1 then
+            cw_v.str_result_elem_out.data.last := '1';
+          else
+            cw_v.str_result_elem_out.data.last := '0';
+          end if;
+
+          cw_v.state := WAIT_INPUT_READY;
+        end if;
+
+      when WAIT_INPUT_READY =>
+        if cw_r.str_result_elem_in.data.ready = '1' then  -- Handshake occurred
+          cw_v.result_index := cw_r.result_index + 1;
+
+          re.outfifo.c.rd_en <= not re.outfifo.c.empty;
+
+          if cw_r.result_index = to_integer(rs.result_length) - 1 then
+            -- this was the last one
+            cw_v.state := WAIT_UNLOCK;
+          else
+            -- Write more values
+            cw_v.state := WRITE_VALUE;
+          end if;
+        else
+          cw_v.str_result_elem_out.data.valid  := '1';
+          cw_v.str_result_elem_out.data.dvalid := '1';
+          cw_v.str_result_elem_out.data.data   := cw_r.str_result_elem_out.data.data;
+          cw_v.str_result_elem_out.data.last   := cw_r.str_result_elem_out.data.last;
+        end if;
+
+      when WAIT_UNLOCK =>
+        o.unl.ready := '1';
+        if result_unlock_valid = '1' then
+          cw_v.state   := WRITE_DONE;
+          cw_v.cs.busy := '0';
+        end if;
+
+      when WRITE_DONE =>
+        cw_v.cs.done := '1';
+        cw_v.cs.busy := '0';
+        cw_v.state   := IDLE;
+    end case;
+
+    -- Registered outputs
+    cw_d <= cw_v;
+
+    -- Combinatorial outputs
+    result_cmd_valid    <= o.cmd.valid;
+    result_cmd_firstIdx <= o.cmd.firstIdx;
+    result_cmd_lastIdx  <= o.cmd.lastIdx;
+    result_cmd_tag      <= o.cmd.tag;
+
+    result_unlock_ready <= o.unl.ready;
+
+  end process;
+
+  result_cmd_ctrl <= r_result_data_hi & r_result_data_lo;
+
   ---------------------------------------------------------------------------------------------------
   --  ______   _                                     _       ______   _____   ______    ____
   -- |  ____| | |                                   | |     |  ____| |_   _| |  ____|  / __ \
@@ -1008,6 +1330,11 @@ begin
         vs.element1_reads := r.element1_reads(31 downto 0);
         vs.element2_reads := r.element2_reads(31 downto 0);
         vs.operation := r.operation;
+
+        case r.operation is -- Determine number of results per operation
+            when VECTOR_DOT => vs.result_length := to_unsigned(1, 32);
+            when others => vs.result_length := (others => '0');
+        end case;
 
         vs.accum_pass_cnt := (others => '0');
 

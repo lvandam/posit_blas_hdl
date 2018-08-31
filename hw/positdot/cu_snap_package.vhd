@@ -78,6 +78,7 @@ function op2op (a      : in std_logic_vector(31 downto 0)) return op_type;
     startflag : std_logic;
 
     operation : op_type;
+    result_length      : unsigned(31 downto 0);
     element1_reads     : unsigned(31 downto 0);
     element2_reads     : unsigned(31 downto 0);
     accum_cnt          : unsigned(3 downto 0);
@@ -97,6 +98,7 @@ function op2op (a      : in std_logic_vector(31 downto 0)) return op_type;
     valid              => '0',
     startflag          => '0',
     operation          => INVALID_OP,
+    result_length      => (others => '0'),
     element1_reads     => (others => '0'),
     element2_reads     => (others => '0'),
     accum_cnt          => (others => '0'),

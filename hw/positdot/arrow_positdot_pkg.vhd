@@ -205,6 +205,44 @@ package arrow_positdot_pkg is
       );
   end component;
 
+    -----------------------------------------------------------------------------
+    -- AXI write address & data channel conversion
+    -----------------------------------------------------------------------------
+    component axi_write_converter is
+      generic (
+        ADDR_WIDTH        : natural;
+        MASTER_DATA_WIDTH : natural;
+        MASTER_LEN_WIDTH  : natural;
+        SLAVE_DATA_WIDTH  : natural;
+        SLAVE_LEN_WIDTH   : natural;
+        SLAVE_MAX_BURST   : natural;
+        ENABLE_FIFO       : boolean
+        );
+      port (
+        clk               : in  std_logic;
+        reset_n           : in  std_logic;
+        s_bus_wreq_valid  : in  std_logic;
+        s_bus_wreq_ready  : out std_logic;
+        s_bus_wreq_addr   : in  std_logic_vector(ADDR_WIDTH-1 downto 0);
+        s_bus_wreq_len    : in  std_logic_vector(SLAVE_LEN_WIDTH-1 downto 0);
+        s_bus_wdat_valid  : in  std_logic;
+        s_bus_wdat_ready  : out std_logic;
+        s_bus_wdat_data   : in  std_logic_vector(SLAVE_DATA_WIDTH-1 downto 0);
+        s_bus_wdat_strobe : in  std_logic_vector(SLAVE_DATA_WIDTH/8-1 downto 0);
+        s_bus_wdat_last   : in  std_logic;
+        m_axi_awaddr      : out std_logic_vector(ADDR_WIDTH-1 downto 0);
+        m_axi_awlen       : out std_logic_vector(MASTER_LEN_WIDTH-1 downto 0);
+        m_axi_awvalid     : out std_logic;
+        m_axi_awready     : in  std_logic;
+        m_axi_awsize      : out std_logic_vector(2 downto 0);
+        m_axi_wvalid      : out std_logic;
+        m_axi_wready      : in  std_logic;
+        m_axi_wdata       : out std_logic_vector(MASTER_DATA_WIDTH-1 downto 0);
+        m_axi_wstrb       : out std_logic_vector(MASTER_DATA_WIDTH/8-1 downto 0);
+        m_axi_wlast       : out std_logic
+        );
+    end component;
+
   component positdot_unit is
     generic (
       -- Host bus properties
@@ -238,6 +276,9 @@ package arrow_positdot_pkg is
         -- Elements vector 2 buffer addresses
         element2_off_hi, element2_off_lo     : in std_logic_vector(REG_WIDTH-1 downto 0);
         element2_posit_hi, element2_posit_lo : in std_logic_vector(REG_WIDTH-1 downto 0);
+
+        -- Result buffer address
+        result_data_hi, result_data_lo : in std_logic_vector(REG_WIDTH-1 downto 0);
 
         -- Result array
         result : out std_logic_vector(REG_WIDTH-1 downto 0);
@@ -275,7 +316,23 @@ package arrow_positdot_pkg is
         bus_element2_rsp_resp  : in  std_logic_vector(1 downto 0);
         bus_element2_rsp_last  : in  std_logic;
         bus_element2_rsp_valid : in  std_logic;
-        bus_element2_rsp_ready : out std_logic
+        bus_element2_rsp_ready : out std_logic;
+
+        ---------------------------------------------------------------------------
+        -- Master bus Result
+        ---------------------------------------------------------------------------
+        -- Write request channel
+        bus_result_wreq_addr  : out std_logic_vector(BUS_ADDR_WIDTH-1 downto 0);
+        bus_result_wreq_len   : out std_logic_vector(BUS_LEN_WIDTH-1 downto 0);
+        bus_result_wreq_valid : out std_logic;
+        bus_result_wreq_ready : in  std_logic;
+
+        -- Write response channel
+        bus_result_wdat_data   : out std_logic_vector(BUS_DATA_WIDTH-1 downto 0);
+        bus_result_wdat_strobe : out std_logic_vector(BUS_DATA_WIDTH/8-1 downto 0);
+        bus_result_wdat_last   : out std_logic;
+        bus_result_wdat_valid  : out std_logic;
+        bus_result_wdat_ready  : in  std_logic
       );
   end component;
 

@@ -41,7 +41,7 @@
 #endif
 
 /* Burst step length in bytes */
-#define BURST_LENGTH 32
+#define BURST_LENGTH 2048
 
 using namespace std;
 
@@ -279,9 +279,13 @@ int main(int argc, char ** argv)
  */
 double vector_dot(std::vector<posit<NBITS, ES>>& vector1, std::vector<posit<NBITS, ES>>& vector2, posit<NBITS, ES>& result)
 {
+        int rc = 0;
+
         // Times
         double start, stop;
         double t_fpga = 0.0;
+
+        int num_result_rows = 1; // For dot product
 
         flush(cout);
 
@@ -312,6 +316,18 @@ double vector_dot(std::vector<posit<NBITS, ES>>& vector1, std::vector<posit<NBIT
         // Reset UserCore
         uc.reset();
 
+        // Write result buffer addresses
+        // Create arrays for results to be written to
+        uint32_t* result_hw;
+        rc = posix_memalign((void * * ) &result_hw, BURST_LENGTH, sizeof(uint32_t) * num_result_rows);
+        // clear values buffer
+        for (uint32_t i = 0; i < num_result_rows; i++) {
+                result_hw[i] = 0xDEADBEEF;
+        }
+        addr_lohi val;
+        val.full = (uint64_t) result_hw;
+        platform->write_mmio(REG_RESULT_DATA_OFFSET, val.full);
+
         // Configure the cores
         DEBUG_PRINT("Setting operation...\n");
         uc.set_operation(VECTOR_DOT);
@@ -326,24 +342,45 @@ double vector_dot(std::vector<posit<NBITS, ES>>& vector1, std::vector<posit<NBIT
         uc.wait_for_finish();
 #endif
 
-        // Read result from MMIO
-        uint32_t result_hw;
-        addr_lohi val;
-        platform->read_mmio(REG_RESULT_OFFSET, &val.full);
-        result_hw = val.half.hi;
+        // Wait for last result
+        do {
+            cout << "==================================" << endl;
+            for(int j = 0; j < num_result_rows; j++) {
+                    cout << dec << j <<": " << hex << result_hw[j] << dec <<endl;
+            }
+            cout << "==================================" << endl;
+            cout << endl;
+
+            usleep(1);
+        }
+        while ((result_hw[num_result_rows - 1] == 0xDEADBEEF));
 
         stop = omp_get_wtime();
         t_fpga = stop - start;
 
-        // cout << dec <<"0: " << hex << result_hw << dec <<endl;
+        // Parse posits
+        std::vector<posit<NBITS,ES>> results_posit;
+        results_posit.resize(num_result_rows);
+        for(int i = 0; i < num_result_rows; i++) {
+            posit<NBITS, ES> result_posit;
+            result_posit.set_raw_bits(result_hw[i]);
+            results_posit[i] = result_posit;
+        }
 
-        posit<NBITS, ES> result_posit;
-        result_posit.set_raw_bits(result_hw);
+        // // Read result from MMIO
+        // uint32_t result_hw;
+        // addr_lohi val;
+        // platform->read_mmio(REG_RESULT_OFFSET, &val.full);
+        // result_hw = val.half.hi;
+        // posit<NBITS, ES> result_posit;
+        // result_posit.set_raw_bits(result_hw);
+
+        // cout << dec <<"0: " << hex << result_hw << dec <<endl;
 
         // Reset UserCore
         uc.reset();
 
-        result = result_posit;
+        result = results_posit[0]; // For dot product, only 1 result is produced
 
         return t_fpga;
 }

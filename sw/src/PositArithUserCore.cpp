@@ -42,7 +42,7 @@ void PositArithUserCore::set_operation(Operation op) {
         uint32_t opcode = op;
         reg_conv_t reg;
 
-        reg.half.hi = 0;
+        reg.half.hi = opcode;
         reg.half.lo = opcode;
 
         this->platform()->write_mmio(REG_OPERATION_OFFSET, reg.full);

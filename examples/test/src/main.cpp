@@ -13,6 +13,7 @@
 #include <positarith.h>
 
 #include "main.hpp"
+#include "defines.hpp"
 
 using namespace std;
 using namespace sw::unum;
@@ -48,8 +49,8 @@ int main(int argc, char ** argv)
 
 void test_dot_product(int length) {
     // Vector Dot Product
-    std::vector<posit<32,2>> vec1, vec2;
-    posit<32,2> result;
+    std::vector<posit<NBITS,ES>> vec1, vec2;
+    posit<NBITS,ES> result;
 
     for(int i = 0; i < length; i++) {
         vec1.push_back(1);
@@ -71,8 +72,8 @@ void test_dot_product(int length) {
 
 void test_add(int length) {
     // Vector Add
-    std::vector<posit<32,2>> vec1, vec2;
-    std::vector<posit<32,2>> result;
+    std::vector<posit<NBITS,ES>> vec1, vec2;
+    std::vector<posit<NBITS,ES>> result;
 
     for(int i = 0; i < length; i++){
         vec1.push_back(i);
@@ -83,7 +84,7 @@ void test_add(int length) {
     t_fpga = vector_add(vec1, vec2, result);
 
     cout << "Posit Result: " << endl;
-    for(posit<32,2>& el : result) {
+    for(posit<NBITS,ES>& el : result) {
         cout << pretty_print(el) << endl;
     }
     cout << "FPGA Execution Time: " << t_fpga << "s" << endl;
@@ -91,9 +92,9 @@ void test_add(int length) {
 
 void test_add_scalar(int length) {
     // Vector Add Scalar
-    std::vector<posit<32,2>> vec1;
-    std::vector<posit<32,2>> result;
-    posit<32,2> scalar;
+    std::vector<posit<NBITS,ES>> vec1;
+    std::vector<posit<NBITS,ES>> result;
+    posit<NBITS,ES> scalar;
 
     for(int i = 0; i < length; i++){
         vec1.push_back(i);
@@ -105,7 +106,7 @@ void test_add_scalar(int length) {
     t_fpga = vector_add(vec1, scalar, result);
 
     cout << "Posit Result: " << endl;
-    for(posit<32,2>& el : result) {
+    for(posit<NBITS,ES>& el : result) {
         cout << pretty_print(el) << endl;
     }
     cout << "FPGA Execution Time: " << t_fpga << "s" << endl;
@@ -113,8 +114,8 @@ void test_add_scalar(int length) {
 
 void test_subtract(int length) {
     // Vector Subtract
-    std::vector<posit<32,2>> vec1, vec2;
-    std::vector<posit<32,2>> result;
+    std::vector<posit<NBITS,ES>> vec1, vec2;
+    std::vector<posit<NBITS,ES>> result;
 
     for(int i = 0; i < length; i++){
         vec1.push_back(i);
@@ -125,7 +126,7 @@ void test_subtract(int length) {
     t_fpga = vector_sub(vec1, vec2, result);
 
     cout << "Posit Result: " << endl;
-    for(posit<32,2>& el : result) {
+    for(posit<NBITS,ES>& el : result) {
         cout << pretty_print(el) << endl;
     }
     cout << "FPGA Execution Time: " << t_fpga << "s" << endl;
@@ -133,9 +134,9 @@ void test_subtract(int length) {
 
 void test_subtract_scalar(int length) {
     // Vector Subtract Scalar
-    std::vector<posit<32,2>> vec1;
-    std::vector<posit<32,2>> result;
-    posit<32,2> scalar;
+    std::vector<posit<NBITS,ES>> vec1;
+    std::vector<posit<NBITS,ES>> result;
+    posit<NBITS,ES> scalar;
 
     for(int i = 0; i < length; i++){
         vec1.push_back(i);
@@ -147,7 +148,7 @@ void test_subtract_scalar(int length) {
     t_fpga = vector_sub(vec1, scalar, result);
 
     cout << "Posit Result: " << endl;
-    for(posit<32,2>& el : result) {
+    for(posit<NBITS,ES>& el : result) {
         cout << pretty_print(el) << endl;
     }
     cout << "FPGA Execution Time: " << t_fpga << "s" << endl;
@@ -155,8 +156,8 @@ void test_subtract_scalar(int length) {
 
 void test_sum(int length) {
     // Vector Sum
-    std::vector<posit<32,2>> vec1;
-    posit<32,2> result;
+    std::vector<posit<NBITS,ES>> vec1;
+    posit<NBITS,ES> result;
 
     for(int i = 0; i < length; i++){
         vec1.push_back(i);
@@ -171,8 +172,8 @@ void test_sum(int length) {
 
 void test_mult(int length) {
     // Vector Multiplication
-    std::vector<posit<32,2>> vec1, vec2;
-    std::vector<posit<32,2>> result;
+    std::vector<posit<NBITS,ES>> vec1, vec2;
+    std::vector<posit<NBITS,ES>> result;
 
     for(int i = 0; i < length; i++){
         vec1.push_back(i);
@@ -183,7 +184,7 @@ void test_mult(int length) {
     t_fpga = vector_mult(vec1, vec2, result);
 
     cout << "Posit Result: " << endl;
-    for(posit<32,2>& el : result) {
+    for(posit<NBITS,ES>& el : result) {
         cout << pretty_print(el) << endl;
     }
     cout << "FPGA Execution Time: " << t_fpga << "s" << endl;
@@ -191,9 +192,9 @@ void test_mult(int length) {
 
 void test_mult_scalar(int length) {
     // Vector Multiplication Scalar
-    std::vector<posit<32,2>> vec1;
-    std::vector<posit<32,2>> result;
-    posit<32,2> scalar;
+    std::vector<posit<NBITS,ES>> vec1;
+    std::vector<posit<NBITS,ES>> result;
+    posit<NBITS,ES> scalar;
 
     for(int i = 0; i < length; i++){
         vec1.push_back(i);
@@ -205,7 +206,7 @@ void test_mult_scalar(int length) {
     t_fpga = vector_mult(vec1, scalar, result);
 
     cout << "Posit Result: " << endl;
-    for(posit<32,2>& el : result) {
+    for(posit<NBITS,ES>& el : result) {
         cout << pretty_print(el) << endl;
     }
     cout << "FPGA Execution Time: " << t_fpga << "s" << endl;

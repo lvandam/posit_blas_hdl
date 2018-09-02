@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.3.2)
 
-project(posit_user)
+project(posit_test)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,13 +22,13 @@ ExternalProject_Add(universal
 
 include_directories(${EXTERNAL_INSTALL_LOCATION}/src/universal)
 
-file(GLOB posit_user_SRC
+file(GLOB posit_test_SRC
         "src/*.hpp"
         "src/*.cpp"
         )
 
-add_executable(posit_user ${posit_user_SRC})
-add_dependencies(posit_user universal)
+add_executable(posit_test ${posit_test_SRC})
+add_dependencies(posit_test universal)
 
 # find_library(LIB_FLETCHER fletcher)
 # find_library(LIB_ARROW arrow)

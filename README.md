@@ -1,5 +1,13 @@
 # Posit Arithmetic Accelerator on FPGA (Apache Arrow, CAPI SNAP)
+This repository consists of a hardware design for accelerating vector arithmetic operations for the posit number format.
 
+Both the hardware description of the accelerator as well as a C++ software library is provided. The library can be used in order to easily pass vectors to the FPGA and perform the selected operation on it.
+
+Currently, the following vector operations are supported:
+* Vector aggregation (vector dot product, vector sum)
+* Vector (scalar) addition
+* Vector (scalar) subtraction
+* Vector (scalar) multiplication
 
 ## Requirements
 ### CMake 3.3.1+

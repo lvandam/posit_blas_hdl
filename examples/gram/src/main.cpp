@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <fstream>
 #include <omp.h>
+#include <valarray>
 
 #include <posit/posit>
 // Posit Arithmetic FPGA accelerator library
@@ -18,46 +19,122 @@
 using namespace std;
 using namespace sw::unum;
 
-/*
-From https://stackoverflow.com/questions/12254720/gram-schmidt-orthogonalization-incorrect-implementation
+void printVector(vector<posit<NBITS,ES>>& vec) {
+    cout << "< ";
+    for (vector<posit<NBITS,ES>>::const_iterator i = vec.begin(); i != vec.end(); ++i) {
+        std::cout << *i << ", ";
+    }
+    cout << ">" << endl;
+}
 
-The Gram-Schmidt Orthogonalization algorithm is as follows:
+void printVector(valarray<float>& vec) {
+    cout << "< ";
+    for(float& el : vec) {
+        cout << el << ", ";
+    }
+    cout << ">" << endl;
+}
 
-    Given a set of n linearly independent vectors Beta = {e_1, e_2, ..., e_n},
-    the algorithm produces a set Beta' = {e_1', e_2', ..., e_n'} such that
-    dot(e_i', e_j') = 0 whenever i != j.
+void printMatrix(vector<vector<posit<NBITS,ES>>>& matrix) {
+    for (int i = 0; i < matrix.size(); i++)
+    {
+            cout << "< ";
+            for(int j = 0; j < matrix[i].size(); j++) {
+                    cout << matrix[i][j];
+                    if(j < matrix[i].size() - 1)
+                        cout << ", ";
+            }
+            cout << " >" << endl;
+    }
+}
 
-    A. Set e_1' = e_1
-    B. Begin with the index i = 2 and k = 1
-    C. Subtract the projection of e, onto the vectors e_1', e_2', ..., e_(i-1)'
-       from e_i, and store the result in e_i', That is,
+void normalizeVector(vector<posit<NBITS,ES>>& vec) {
+    posit<NBITS,ES> sum;
+    for(posit<NBITS,ES>& el : vec) {
+        sum += el * el;
+    }
+    double sq = sqrt((double)sum);
+    for(posit<NBITS,ES>& el : vec) {
+        el = el / sq;
+    }
+}
 
-                             dot(e_i, e_k')
-       e_i' = e_i - sum_over(-------------- e_k')
-                                e_k'^2
+void normalizeVector(valarray<float>& vec) {
+    float sum;
+    for(float& el : vec) {
+        sum += el * el;
+    }
+    float sq = sqrt((float)sum);
+    for(float& el : vec) {
+        el = el / sq;
+    }
+}
 
-    D. If i < n, increment i and loop back to step C.
-*/
+vector<posit<NBITS, ES> > sumProj(vector<vector<posit<NBITS,ES> > >& v, vector<vector<posit<NBITS,ES> > >& u, int i)
+{
+        int k = 0;
+        vector<posit<NBITS,ES> > result(u[0].size());
 
-vector<posit<NBITS, ES>> sum_over_e(vector<vector<posit<NBITS,ES>>>& e, vector<vector<posit<NBITS,ES>>>& e_prime, int i)
+        // cout << "i = " << i << "  " << endl;
+
+        while (k < i)
+        {
+            cout << k << ", " << endl;
+                posit<NBITS,ES> dot_u_u;
+                vector_dot(u[k], u[k], dot_u_u);
+                // cout << "dot_u_u = " << dot_u_u << endl;
+
+                posit<NBITS,ES> dot_v_u;
+                vector_dot(v[i], u[k], dot_v_u);
+                // cout << "v["<<i<<"] = "; printVector(v[i]);
+                // cout << "u["<<k<<"] = "; printVector(u[k]);
+                // cout << "dot_v_u = " << dot_v_u << endl;
+
+                posit<NBITS,ES> factor = dot_v_u / dot_u_u;
+                // cout << "factor = " << factor << endl;
+
+                vector<posit<NBITS,ES> > factor_u;
+                vector_mult(u[k], factor, factor_u);
+                // cout << "factor_u = ";
+                // printVector(factor_u);
+
+                vector_add(result, factor_u, result);
+                // cout << "result = ";
+                // printVector(result);
+
+                k++;
+        }
+        cout << endl;
+
+        return result;
+}
+
+valarray<float> sumProj(valarray<valarray<float>> v, valarray<valarray<float>> u, int i)
 {
     int k = 0;
-    vector<posit<NBITS,ES>> result(e_prime[0].size());
+    valarray<float> result(3);
 
-    while (k < i - 1)
+    while (k < i)
     {
-        posit<NBITS,ES> e_prime_k_squared;
-        vector_dot(e_prime[k], e_prime[k], e_prime_k_squared);
+        cout << k << ", " << endl;
+        float dot_u_u = (u[k] * u[k]).sum();
+        cout << "dot_u_u = " << dot_u_u << endl;
 
-        posit<NBITS,ES> dot_e_e_prime;
-        vector_dot(e[i], e_prime[k], dot_e_e_prime);
+        float dot_v_u = (v[i] * u[k]).sum();
+        cout << "v["<<i<<"] = "; printVector(v[i]);
+        cout << "u["<<k<<"] = "; printVector(u[k]);
+        cout << "dot_v_u = " << dot_v_u << endl;
 
-        posit<NBITS,ES> factor = dot_e_e_prime / e_prime_k_squared;
+        float factor = dot_v_u / dot_u_u;
+        cout << "factor = " << factor << endl;
 
-        vector<posit<NBITS,ES>> factor_e_prime;
-        vector_mult(e_prime[k], factor, factor_e_prime);
+        valarray<float> factor_u = factor * u[k];
+        cout << "factor_u = ";
+        printVector(factor_u);
 
-        vector_add(result, factor_e_prime, result);
+        result += factor * u[k];
+        cout << "result = ";
+        printVector(result);
 
         k++;
     }
@@ -67,188 +144,86 @@ vector<posit<NBITS, ES>> sum_over_e(vector<vector<posit<NBITS,ES>>>& e, vector<v
 
 int main(int argc, char ** argv)
 {
-    int n = 3; // Number of vectors
+        if(argc < 3)
+        {
+                cout << "Usage: ./posit_gram <# vectors> <vector length>" << endl;
+                exit(1);
+        }
+        int n = stoi(argv[1]); // Number of vectors
+        int m = stoi(argv[2]); // Vector dimension
 
-    vector<vector<posit<NBITS, ES>>> e(3);
-    vector<vector<posit<NBITS, ES>>> e_prime(3);
+        if(n > m) {
+            cout << "Number of vectors should be smaller than vector dimension" << endl;
+            exit(1);
+        }
 
-    // e.resize(n); e_prime.resize(n);
+        vector<vector<posit<NBITS, ES> > > v(n);
+        vector<vector<posit<NBITS, ES> > > u(n); // Orthogonal set
 
-    // Fill the vectors
-    for(int i = 0; i < 3; i++) {
-        vector<posit<NBITS,ES>> vec = {1, 0, 1};
-        e[i] = vec;
-    }
+        for(int i = 0; i < n; i++) {
+            u[i].resize(m);
+        }
 
-    e_prime[0] = e[0];
+        // v[0] = {sqrt(2)/2, sqrt(2)/2,  0};
+        // v[1] = {       -1,         1, -1};
+        // v[2] = {        0,        -2, -2};
 
-    int i = 0;
-    do {
-        vector<posit<NBITS,ES>> sum = sum_over_e(e, e_prime, i);
-        vector_sub(e[i], sum, e_prime[i]);
-        i++;
-    } while(i < n);
+        // Fill vectors
+        for(int i = 0; i < n; i++) {
+            vector<posit<NBITS, ES>> vec(m);
+            for(int j = 0; j < m; j++) {
+                vec[j] = sqrt(2)/2;
+            }
+            v[i] = vec;
+        }
 
-    for (int i = 0; i < n; i++)
-    {
-        cout << "Vector e_prime_" << i+1 << ": < "
-        << e_prime[i][0] << ", "
-        << e_prime[i][1] << ", "
-        << e_prime[i][2] << " >" << endl;
-    }
+        u[0] = v[0];
+        int i = 0;
+        do {
+                vector<posit<NBITS,ES> > sum = sumProj(v, u, i);
+                vector_sub(v[i], sum, u[i]);
+                // normalizeVector(u[i]);
+                i++;
+        } while(i < n);
 
+        // Printing results
+        printMatrix(u);
 
+        // cout << "FLOAT:" << endl;
+        // // FLOAT
+        // {
+        //     valarray<valarray<float > > v(3);
+        //     valarray<valarray<float > > u(3);
+        //
+        //     v[0] = {sqrt(2)/2, sqrt(2)/2,  0};
+        //     v[1] = {       -1,         1, -1};
+        //     v[2] = {        0,        -2, -2};
+        //
+        //     for(int i = 0; i < n; i++) {
+        //         u[i].resize(m);
+        //     }
+        //
+        //     u[0] = v[0];
+        //
+        //     int i = 0;
+        //     do {
+        //             valarray<float > sum = sumProj(v, u, i);
+        //             u[i] = v[i] - sum;
+        //             normalizeVector(u[i]);
+        //             i++;
+        //     } while(i < n);
+        //
+        //     for (int i = 0; i < n; i++)
+        //     {
+        //             cout << "< ";
+        //             for(int j = 0; j < m; j++) {
+        //                     cout << u[i][j];
+        //                     if(j < m - 1)
+        //                         cout << ", ";
+        //             }
+        //             cout << " >" << endl;
+        //     }
+        // }
 
-
-
-
-
-
-
-
-
-
-
-    // cout << endl << "=== VECTOR DOT PRODUCT ===" << endl;
-    // test_dot_product(50);
-    //
-    // cout << endl << "=== VECTOR ADD ===" << endl;
-    // test_add(50);
-    //
-    // cout << endl << "=== VECTOR ADD SCALAR ===" << endl;
-    // test_add_scalar(50);
-    //
-    // cout << endl << "=== VECTOR SUBTRACT ===" << endl;
-    // test_subtract(50);
-    //
-    // cout << endl << "=== VECTOR SUBTRACT SCALAR ===" << endl;
-    // test_subtract_scalar(50);
-    //
-    // cout << endl << "=== VECTOR SUM ===" << endl;
-    // test_sum(50);
-
-    return 0;
-}
-
-void test_dot_product(int length) {
-    // Vector Dot Product
-    std::vector<posit<32,2>> vec1, vec2;
-    posit<32,2> result;
-
-    for(int i = 0; i < length; i++) {
-        vec1.push_back(1);
-        vec2.push_back(i);
-    }
-
-    float res = 0;
-    for(int i = 0; i < length; i++) {
-        res = res + i;
-    }
-    cout << "Result float: " << res << endl;
-
-    double t_fpga;
-    t_fpga = vector_dot(vec1, vec2, result);
-
-    cout << "Posit Result: " << pretty_print(result) << endl;
-    cout << "FPGA Execution Time: " << t_fpga << "s" << endl;
-}
-
-void test_add(int length) {
-    // Vector Add
-    std::vector<posit<32,2>> vec1, vec2;
-    std::vector<posit<32,2>> result;
-
-    for(int i = 0; i < length; i++){
-        vec1.push_back(i);
-        vec2.push_back(i);
-    }
-
-    double t_fpga;
-    t_fpga = vector_add(vec1, vec2, result);
-
-    cout << "Posit Result: " << endl;
-    for(posit<32,2>& el : result) {
-        cout << pretty_print(el) << endl;
-    }
-    cout << "FPGA Execution Time: " << t_fpga << "s" << endl;
-}
-
-void test_add_scalar(int length) {
-    // Vector Add Scalar
-    std::vector<posit<32,2>> vec1;
-    std::vector<posit<32,2>> result;
-    posit<32,2> scalar;
-
-    for(int i = 0; i < length; i++){
-        vec1.push_back(i);
-    }
-
-    scalar = 5;
-
-    double t_fpga;
-    t_fpga = vector_add(vec1, scalar, result);
-
-    cout << "Posit Result: " << endl;
-    for(posit<32,2>& el : result) {
-        cout << pretty_print(el) << endl;
-    }
-    cout << "FPGA Execution Time: " << t_fpga << "s" << endl;
-}
-
-void test_subtract(int length) {
-    // Vector Subtract
-    std::vector<posit<32,2>> vec1, vec2;
-    std::vector<posit<32,2>> result;
-
-    for(int i = 0; i < length; i++){
-        vec1.push_back(i);
-        vec2.push_back(i);
-    }
-
-    double t_fpga;
-    t_fpga = vector_sub(vec1, vec2, result);
-
-    cout << "Posit Result: " << endl;
-    for(posit<32,2>& el : result) {
-        cout << pretty_print(el) << endl;
-    }
-    cout << "FPGA Execution Time: " << t_fpga << "s" << endl;
-}
-
-void test_subtract_scalar(int length) {
-    // Vector Subtract Scalar
-    std::vector<posit<32,2>> vec1;
-    std::vector<posit<32,2>> result;
-    posit<32,2> scalar;
-
-    for(int i = 0; i < length; i++){
-        vec1.push_back(i);
-    }
-
-    scalar = 5;
-
-    double t_fpga;
-    t_fpga = vector_sub(vec1, scalar, result);
-
-    cout << "Posit Result: " << endl;
-    for(posit<32,2>& el : result) {
-        cout << pretty_print(el) << endl;
-    }
-    cout << "FPGA Execution Time: " << t_fpga << "s" << endl;
-}
-
-void test_sum(int length) {
-    // Vector Sum
-    std::vector<posit<32,2>> vec1;
-    posit<32,2> result;
-
-    for(int i = 0; i < length; i++){
-        vec1.push_back(i);
-    }
-
-    double t_fpga;
-    t_fpga = vector_sum(vec1, result);
-
-    cout << "Posit Result: " << pretty_print(result) << endl;
-    cout << "FPGA Execution Time: " << t_fpga << "s" << endl;
+        return 0;
 }

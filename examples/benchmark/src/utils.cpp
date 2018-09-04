@@ -94,8 +94,3 @@ void writeBenchmark(DebugValues<posit<NBITS, ES> > &hw_debug_values, DebugValues
         cout << "Closing file..." << endl;
         outfile.close();
 }
-
-int roundToMultiple(int toRound, int multiple) {
-        int rem = (toRound - 1) % multiple;
-        return (toRound - 1) + (multiple - rem);
-}

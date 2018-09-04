@@ -9,7 +9,7 @@
 #include <fletcher/fletcher.h>
 
 #define POS_NBITS 32
-#define POS_ES 2
+#define POS_ES 3
 
 using namespace sw::unum;
 
@@ -21,7 +21,7 @@ double vector_sub(std::vector<posit<POS_NBITS,POS_ES>>& vector1, std::vector<pos
 double vector_add(std::vector<posit<POS_NBITS,POS_ES>>& vector1, posit<POS_NBITS,POS_ES>& scalar, std::vector<posit<POS_NBITS,POS_ES>>& result);
 double vector_sub(std::vector<posit<POS_NBITS,POS_ES>>& vector1, posit<POS_NBITS,POS_ES>& scalar, std::vector<posit<POS_NBITS,POS_ES>>& result);
 
-// Multpilication Scalar
+// Multiplication Scalar
 double vector_mult(std::vector<posit<POS_NBITS,POS_ES>>& vector1, std::vector<posit<POS_NBITS,POS_ES>>& vector2, std::vector<posit<POS_NBITS,POS_ES>>& result);
 double vector_mult(std::vector<posit<POS_NBITS,POS_ES>>& vector1, posit<POS_NBITS,POS_ES>& scalar, std::vector<posit<POS_NBITS,POS_ES>>& result);
 

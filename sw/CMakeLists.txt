@@ -41,10 +41,6 @@ file(GLOB positarith_SRC
         "src/*.cpp"
         )
 
-# add_executable(positarith ${positarith_SRC})
-# add_dependencies(positarith universal)
-
-
 find_package(OpenMP REQUIRED)
 if (OPENMP_FOUND)
     set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
@@ -73,13 +69,15 @@ set(LIB_PLATFORM ${LIB_SNAP})
 #   ${LIB_PLATFORM}
 # )
 
-
 add_library(positarith SHARED
     src/positarith.cpp
     src/PositArithUserCore.cpp
     src/scheme.cpp
     src/utils.cpp
 )
+
+# add_executable(positarith ${positarith_SRC})
+add_dependencies(positarith universal)
 
 target_link_libraries(positarith
   ${REQUIRED}

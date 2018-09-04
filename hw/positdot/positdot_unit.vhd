@@ -383,8 +383,8 @@ architecture positdot_unit of positdot_unit is
   signal product                                                                  : value_product;
   signal sum                                                                      : value_sum;
   signal accum_result_raw, accum_final_result_raw                                 : value_accum_prod;
-  signal accum_result, sum_result, product_result                                                 : std_logic_vector(POSIT_NBITS-1 downto 0);
-  signal accum_inf, accum_zero, sum_inf, sum_zero, product_inf, product_zero                                 : std_logic;
+  signal accum_result, sum_result, product_result                                 : std_logic_vector(POSIT_NBITS-1 downto 0);
+  signal accum_inf, accum_zero, sum_inf, sum_zero, product_inf, product_zero      : std_logic;
   signal posit_done_mul, posit_done_add, posit_done_accum, posit_done_accum_final : std_logic;
   signal posit_add_truncated                                                      : std_logic;
   signal posit_truncated_accum, posit_truncated_accum_final                       : std_logic;
@@ -1268,10 +1268,10 @@ begin
         vs.operation      := r.operation;
 
         case r.operation is  -- Determine number of results per operation
-          when VECTOR_DOT => vs.result_length := to_unsigned(1, 32);
-          when VECTOR_ADD => vs.result_length := align_aeq(r.element1_reads, 3);
+          when VECTOR_DOT  => vs.result_length := to_unsigned(1, 32);
+          when VECTOR_ADD  => vs.result_length := align_aeq(r.element1_reads, 3);
           when VECTOR_MULT => vs.result_length := align_aeq(r.element1_reads, 3);
-          when others     => vs.result_length := (others => '0');
+          when others      => vs.result_length := (others => '0');
         end case;
 
         vs.accum_pass_cnt := (others => '0');
@@ -1287,10 +1287,10 @@ begin
 
           -- Enter state based on our operation
           case r.operation is
-            when VECTOR_DOT => vs.state := SCHED_VECTOR_DOT_PROCESSING;
-            when VECTOR_ADD => vs.state := SCHED_VECTOR_ADD_PROCESSING;
+            when VECTOR_DOT  => vs.state := SCHED_VECTOR_DOT_PROCESSING;
+            when VECTOR_ADD  => vs.state := SCHED_VECTOR_ADD_PROCESSING;
             when VECTOR_MULT => vs.state := SCHED_VECTOR_MULT_PROCESSING;
-            when others     => vs.state := SCHED_WAIT_START;
+            when others      => vs.state := SCHED_WAIT_START;
           end case;
         end if;
 

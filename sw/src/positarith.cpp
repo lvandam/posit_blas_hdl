@@ -290,7 +290,7 @@ double vector_dot(std::vector<posit<NBITS, ES>>& vector1, std::vector<posit<NBIT
         flush(cout);
 
         if(vector1.size() != vector2.size()) {
-            throw domain_error("Unequal input vector lengths");
+            throw domain_error("vector_dot: Unequal input vector lengths");
         }
 
         bool calculate_sw = true;
@@ -389,7 +389,7 @@ double vector_add(std::vector<posit<NBITS, ES>>& vector1, std::vector<posit<NBIT
         flush(cout);
 
         if(vector1.size() != vector2.size()) {
-            throw domain_error("Unequal input vector lengths");
+            throw domain_error("vector_add: Unequal input vector lengths");
         }
 
         int num_result_rows = roundToMultiple(vector1.size(), 8);
@@ -589,7 +589,7 @@ double vector_sub(std::vector<posit<NBITS, ES>>& vector1, std::vector<posit<NBIT
         flush(cout);
 
         if(vector1.size() != vector2.size()) {
-            throw domain_error("Unequal input vector lengths");
+            throw domain_error("vector_sub: Unequal input vector lengths");
         }
 
         int num_result_rows = roundToMultiple(vector1.size(), 8);
@@ -887,7 +887,7 @@ double vector_mult(std::vector<posit<NBITS, ES>>& vector1, std::vector<posit<NBI
         flush(cout);
 
         if(vector1.size() != vector2.size()) {
-            throw domain_error("Unequal input vector lengths");
+            throw domain_error("vector_mult: Unequal input vector lengths");
         }
 
         int num_result_rows = roundToMultiple(vector1.size(), 8);

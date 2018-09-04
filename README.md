@@ -9,7 +9,15 @@ Currently, the following vector operations are supported:
 * Vector (scalar) subtraction
 * Vector (scalar) multiplication
 
+
 ## Requirements
+### Clone the repository & Initialize submodules
+```
+git clone https://github.com/lvandam/posit_arith.gi posit_arith
+cd posit_arith
+git submodule update --init
+```
+
 ### CMake 3.3.1+
 Available at https://cmake.org/download/, or perhaps through the OS package manager
 ### Boost C++

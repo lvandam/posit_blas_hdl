@@ -377,18 +377,22 @@ architecture positdot_unit of positdot_unit is
   signal q, r   : cu_int;
   signal re     : cu_ext;
 
-  signal el1_posit_in, el2_posit_in                                               : std_logic_vector(POSIT_NBITS-1 downto 0);
-  signal element1, element2                                                       : value;
-  signal el1_el2_valid                                                            : std_logic;
-  signal product                                                                  : value_product;
-  signal sum                                                                      : value_sum;
-  signal accum_result_raw, accum_final_result_raw                                 : value_accum_prod;
-  signal accum_result, sum_result, product_result                                 : std_logic_vector(POSIT_NBITS-1 downto 0);
-  signal accum_inf, accum_zero, sum_inf, sum_zero, product_inf, product_zero      : std_logic;
-  signal posit_done_mul, posit_done_add, posit_done_accum, posit_done_accum_final : std_logic;
-  signal posit_add_truncated                                                      : std_logic;
-  signal posit_truncated_accum, posit_truncated_accum_final                       : std_logic;
-  signal reset_accum                                                              : std_logic;
+  signal el1_posit_in, el2_posit_in                                          : std_logic_vector(POSIT_NBITS-1 downto 0);
+  signal element1, element2                                                  : value;
+  signal el1_el2_valid                                                       : std_logic;
+  signal product                                                             : value_product;
+  signal sum                                                                 : value_sum;
+  signal accum_result_raw, accum_final_result_raw                            : value_accum_prod;
+  signal accum_result                                                        : std_logic_vector(POSIT_NBITS-1 downto 0);
+  signal sum_result, r_sum_result                                            : std_logic_vector(POSIT_NBITS-1 downto 0);
+  signal product_result, r_product_result                                    : std_logic_vector(POSIT_NBITS-1 downto 0);
+  signal accum_inf, accum_zero, sum_inf, sum_zero, product_inf, product_zero : std_logic;
+  signal posit_done_mul, r_posit_done_mul                                    : std_logic;
+  signal posit_done_add, r_posit_done_add                                    : std_logic;
+  signal posit_done_accum, posit_done_accum_final                            : std_logic;
+  signal posit_add_truncated                                                 : std_logic;
+  signal posit_truncated_accum, posit_truncated_accum_final                  : std_logic;
+  signal reset_accum                                                         : std_logic;
 begin
   reset <= not reset_n;
 
@@ -1364,12 +1368,12 @@ begin
           vs.element_fifo_rd := '1';
         end if;
 
-        if posit_done_add = '1' then
+        if r_posit_done_add = '1' then
           vs.accum_pass_cnt := rs.accum_pass_cnt + 1;
           dumpStdOut("PASS " & integer'image(int(vs.accum_pass_cnt)));
 
           vs.accum_write        := '1';
-          vs.accum_write_result := sum_result;
+          vs.accum_write_result := r_sum_result;
 
           if rs.accum_pass_cnt = align_aeq(rs.element1_reads, 3) - 1
             and (re.element1_fifo.c.empty = '1' or re.element2_fifo.c.empty = '1')
@@ -1388,12 +1392,12 @@ begin
           vs.element_fifo_rd := '1';
         end if;
 
-        if posit_done_mul = '1' then
+        if r_posit_done_mul = '1' then
           vs.accum_pass_cnt := rs.accum_pass_cnt + 1;
           dumpStdOut("PASS " & integer'image(int(vs.accum_pass_cnt)));
 
           vs.accum_write        := '1';
-          vs.accum_write_result := product_result;
+          vs.accum_write_result := r_product_result;
 
           if rs.accum_pass_cnt = align_aeq(rs.element1_reads, 3) - 1
             and (re.element1_fifo.c.empty = '1' or re.element2_fifo.c.empty = '1')
@@ -1418,6 +1422,12 @@ begin
         rs.state <= SCHED_WAIT_START;
       else
         rs <= qs;
+
+        r_product_result <= product_result;
+        r_posit_done_mul <= posit_done_mul;
+
+        r_posit_done_add <= posit_done_add;
+        r_sum_result     <= sum_result;
       end if;
     end if;
   end process;

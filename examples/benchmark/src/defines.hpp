@@ -26,4 +26,12 @@ struct find_entry {
     }
 };
 
+template <typename T>
+std::string to_string_precision(const T a_value, const int n = 20)
+{
+    std::ostringstream out;
+    out << std::setprecision(n) << a_value;
+    return out.str();
+}
+
 #endif

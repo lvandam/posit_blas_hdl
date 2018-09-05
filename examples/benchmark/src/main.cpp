@@ -29,6 +29,7 @@ void normalizeVector(vector<posit<NBITS,ES>>& vec) {
         el = el / sq;
     }
 }
+
 void normalizeVector(valarray<float>& vec) {
     float sum;
     for(float& el : vec) {
@@ -44,36 +45,22 @@ vector<posit<NBITS, ES> > sumProj(vector<vector<posit<NBITS,ES> > >& v, vector<v
         int k = 0;
         vector<posit<NBITS,ES> > result(u[0].size());
 
-        // cout << "i = " << i << "  " << endl;
-
         while (k < i)
         {
-            cout << k << ", " << endl;
                 posit<NBITS,ES> dot_u_u;
                 vector_dot(u[k], u[k], dot_u_u);
-                // cout << "dot_u_u = " << dot_u_u << endl;
 
                 posit<NBITS,ES> dot_v_u;
                 vector_dot(v[i], u[k], dot_v_u);
-                // cout << "v["<<i<<"] = "; printVector(v[i]);
-                // cout << "u["<<k<<"] = "; printVector(u[k]);
-                // cout << "dot_v_u = " << dot_v_u << endl;
 
                 posit<NBITS,ES> factor = dot_v_u / dot_u_u;
-                // cout << "factor = " << factor << endl;
 
                 vector<posit<NBITS,ES> > factor_u;
                 vector_mult(u[k], factor, factor_u);
-                // cout << "factor_u = ";
-                // printVector(factor_u);
-
                 vector_add(result, factor_u, result);
-                // cout << "result = ";
-                // printVector(result);
 
                 k++;
         }
-        cout << endl;
 
         return result;
 }
@@ -84,26 +71,11 @@ valarray<float> sumProj(valarray<valarray<float>> v, valarray<valarray<float>> u
 
     while (k < i)
     {
-        // cout << k << ", " << endl;
         float dot_u_u = (u[k] * u[k]).sum();
-        // cout << "dot_u_u = " << dot_u_u << endl;
-
         float dot_v_u = (v[i] * u[k]).sum();
-        // cout << "v["<<i<<"] = "; printVector(v[i]);
-        // cout << "u["<<k<<"] = "; printVector(u[k]);
-        // cout << "dot_v_u = " << dot_v_u << endl;
-
         float factor = dot_v_u / dot_u_u;
-        // cout << "factor = " << factor << endl;
-
         valarray<float> factor_u = factor * u[k];
-        // cout << "factor_u = ";
-        // printVector(factor_u);
-
         result += factor * u[k];
-        // cout << "result = ";
-        // printVector(result);
-
         k++;
     }
 
@@ -116,25 +88,11 @@ valarray<posit<NBITS,ES>> sumProj(valarray<valarray<posit<NBITS,ES>>> v, valarra
 
     while (k < i)
     {
-        // cout << k << ", " << endl;
         posit<NBITS,ES> dot_u_u = (u[k] * u[k]).sum();
-        // cout << "dot_u_u = " << dot_u_u << endl;
-
         posit<NBITS,ES> dot_v_u = (v[i] * u[k]).sum();
-        // cout << "v["<<i<<"] = "; printVector(v[i]);
-        // cout << "u["<<k<<"] = "; printVector(u[k]);
-        // cout << "dot_v_u = " << dot_v_u << endl;
-
         posit<NBITS,ES> factor = dot_v_u / dot_u_u;
-        // cout << "factor = " << factor << endl;
-
         valarray<posit<NBITS,ES>> factor_u = factor * u[k];
-        // cout << "factor_u = ";
-        // printVector(factor_u);
-
         result += factor * u[k];
-        // cout << "result = ";
-        // printVector(result);
 
         k++;
     }
@@ -219,7 +177,7 @@ std::string test_dot_product(int length) {
     stop = omp_get_wtime();
     t_float = stop - start;
 
-    return to_string(t_fpga) + "," + to_string(t_sw) + "," + to_string(t_float);
+    return to_string_precision(t_fpga) + "," + to_string_precision(t_sw) + "," + to_string_precision(t_float);
 }
 
 std::string test_add(int length) {
@@ -256,7 +214,7 @@ std::string test_add(int length) {
     stop = omp_get_wtime();
     t_float = stop - start;
 
-    return to_string(t_fpga) + "," + to_string(t_sw) + "," + to_string(t_float);
+    return to_string_precision(t_fpga) + "," + to_string_precision(t_sw) + "," + to_string_precision(t_float);
 }
 
 std::string test_add_scalar(int length) {
@@ -293,7 +251,7 @@ std::string test_add_scalar(int length) {
     stop = omp_get_wtime();
     t_float = stop - start;
 
-    return to_string(t_fpga) + "," + to_string(t_sw) + "," + to_string(t_float);
+    return to_string_precision(t_fpga) + "," + to_string_precision(t_sw) + "," + to_string_precision(t_float);
 }
 
 std::string test_subtract(int length) {
@@ -330,7 +288,7 @@ std::string test_subtract(int length) {
     stop = omp_get_wtime();
     t_float = stop - start;
 
-    return to_string(t_fpga) + "," + to_string(t_sw) + "," + to_string(t_float);
+    return to_string_precision(t_fpga) + "," + to_string_precision(t_sw) + "," + to_string_precision(t_float);
 }
 
 std::string test_subtract_scalar(int length) {
@@ -367,7 +325,7 @@ std::string test_subtract_scalar(int length) {
     stop = omp_get_wtime();
     t_float = stop - start;
 
-    return to_string(t_fpga) + "," + to_string(t_sw) + "," + to_string(t_float);
+    return to_string_precision(t_fpga) + "," + to_string_precision(t_sw) + "," + to_string_precision(t_float);
 }
 
 std::string test_sum(int length) {
@@ -401,7 +359,7 @@ std::string test_sum(int length) {
     stop = omp_get_wtime();
     t_float = stop - start;
 
-    return to_string(t_fpga) + "," + to_string(t_sw) + "," + to_string(t_float);
+    return to_string_precision(t_fpga) + "," + to_string_precision(t_sw) + "," + to_string_precision(t_float);
 }
 
 std::string test_mult(int length) {
@@ -438,7 +396,7 @@ std::string test_mult(int length) {
     stop = omp_get_wtime();
     t_float = stop - start;
 
-    return to_string(t_fpga) + "," + to_string(t_sw) + "," + to_string(t_float);
+    return to_string_precision(t_fpga) + "," + to_string_precision(t_sw) + "," + to_string_precision(t_float);
 }
 
 std::string test_mult_scalar(int length) {
@@ -475,7 +433,7 @@ std::string test_mult_scalar(int length) {
     stop = omp_get_wtime();
     t_float = stop - start;
 
-    return to_string(t_fpga) + "," + to_string(t_sw) + "," + to_string(t_float);
+    return to_string_precision(t_fpga) + "," + to_string_precision(t_sw) + "," + to_string_precision(t_float);
 }
 
 std::string test_gram(int n, int m) {
@@ -568,5 +526,5 @@ std::string test_gram(int n, int m) {
     stop = omp_get_wtime();
     t_float = stop - start;
 
-    return to_string(t_fpga) + "," + to_string(t_sw) + "," + to_string(t_float);
+    return to_string_precision(t_fpga) + "," + to_string_precision(t_sw) + "," + to_string_precision(t_float);
 }

@@ -1,5 +1,5 @@
 # Posit Arithmetic Accelerator on FPGA (Apache Arrow, CAPI SNAP)
-This repository consists of a hardware design for accelerating vector arithmetic operations for the posit number format.
+This repository consists of a hardware design for accelerating vector arithmetic (Level 1 BLAS) operations for the posit number format.
 
 Both the hardware description of the accelerator as well as a C++ software library is provided. The library can be used in order to easily pass vectors to the FPGA and perform the selected operation on it.
 
@@ -13,8 +13,8 @@ Currently, the following vector operations are supported:
 ## Requirements
 ### Clone the repository & Initialize submodules
 ```
-git clone https://github.com/lvandam/posit_arith.gi posit_arith
-cd posit_arith
+git clone https://github.com/lvandam/posit_blas_hdl.git posit_blas_hdl
+cd posit_blas_hdl
 git submodule update --init
 ```
 
@@ -61,7 +61,7 @@ make software
 ```
 ### Fletcher Runtime Library
 ```
-git clone https://github.com/lvandam/fletcher.git fletcher
+git clone https://github.com/lvandam/fletcher.git fletcher # Forked from repo by Johan Peltenburg (compatibility)
 cd fletcher/runtime
 mkdir build && cd build
 cmake .. -DPLATFORM_SNAP=ON

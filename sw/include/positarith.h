@@ -9,7 +9,7 @@
 #include <fletcher/fletcher.h>
 
 #define POS_NBITS 32
-#define POS_ES 2
+#define POS_ES 3
 
 using namespace sw::unum;
 

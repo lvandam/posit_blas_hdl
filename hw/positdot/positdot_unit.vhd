@@ -1039,6 +1039,11 @@ begin
         end if;
 
       when WRITE_VALUE =>
+        if re.outfifo.c.empty = '0' and re.outfifo.c.rd_rst_busy = '0' then
+          re.outfifo.c.rd_en <= '1';
+          cw_v.state        := WRITE_VALUE;
+        end if;
+
         if re.outfifo.c.valid = '1' then
           cw_v.str_result_elem_out.data.valid  := '1';
           cw_v.str_result_elem_out.data.dvalid := '1';
@@ -1217,6 +1222,7 @@ begin
 
   outfifo : output_fifo
     port map (
+      srst      => reset,                   -- in
       wr_clk    => re.clk_kernel,          -- in
       rd_clk    => clk,                    -- in
       din       => re.outfifo.din,         -- in
@@ -1228,7 +1234,9 @@ begin
       overflow  => re.outfifo.c.overflow,  -- out
       empty     => re.outfifo.c.empty,     -- out
       valid     => re.outfifo.c.valid,     -- out
-      underflow => re.outfifo.c.underflow  -- out
+      underflow => re.outfifo.c.underflow,  -- out
+      rd_rst_busy => re.outfifo.c.rd_rst_busy,
+      wr_rst_busy => re.outfifo.c.wr_rst_busy
       );
 
   ---------------------------------------------------------------------------------------------------

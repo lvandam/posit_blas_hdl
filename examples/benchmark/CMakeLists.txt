@@ -8,10 +8,10 @@ set(CMAKE_CXX_FLAGS "-Wall -Wextra -fext-numeric-literals")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 set(EXTERNAL_INSTALL_LOCATION ${CMAKE_BINARY_DIR}/external)
-
+#GIT_REPOSITORY https://github.com/lvandam/universal
 include(ExternalProject)
 ExternalProject_Add(universal
-        GIT_REPOSITORY https://github.com/lvandam/universal
+        GIT_REPOSITORY https://github.com/stillwater-sc/universal
         GIT_TAG master
         PREFIX ${EXTERNAL_INSTALL_LOCATION}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EXTERNAL_INSTALL_LOCATION}
@@ -33,6 +33,16 @@ add_dependencies(posit_bench universal)
 # find_library(LIB_FLETCHER fletcher)
 # find_library(LIB_ARROW arrow)
 
+# Set hpr-blas include directory
+include_directories("./include")
+
+find_package(Boost)
+message(STATUS "Boost_FOUND " ${Boost_FOUND})
+if (Boost_FOUND)
+	message(STATUS "Including Boost_INCLUDE_DIR " ${Boost_INCLUDE_DIR})
+	include_directories(${Boost_INCLUDE_DIR})
+endif (Boost_FOUND)
+
 find_package(OpenMP REQUIRED)
 if (OPENMP_FOUND)
     set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
@@ -52,6 +62,10 @@ set(LIB_PLATFORM ${LIB_SNAP})
 
 find_library(LIB_POSITARITH positarith)
 message(STATUS "SNAP libpositarith.so at: " ${LIB_POSITARITH})
+
+find_package(MTL REQUIRED)
+include_directories(${MTL_INCLUDE_DIRS})
+add_definitions(${MTL_CXX_DEFINITIONS})
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE PLATFORM=${RUNTIME_PLATFORM})
 

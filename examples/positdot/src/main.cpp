@@ -12,6 +12,9 @@
 #include <boost/range/combine.hpp>
 #include <boost/multiprecision/cpp_dec_float.hpp>
 
+#include <boost/numeric/mtl/mtl.hpp>
+#include <boost/numeric/itl/itl.hpp>
+
 #include <posit/posit>
 // Posit Arithmetic FPGA accelerator library
 #include <positarith.h>
@@ -19,6 +22,9 @@
 #include "main.hpp"
 #include "defines.hpp"
 #include "utils.hpp"
+#include "blas.hpp"
+#include "vector_utils.hpp"
+#include "matrix_utils.hpp"
 
 using namespace std;
 using namespace sw::unum;
@@ -59,11 +65,12 @@ int main(int argc, char ** argv)
 std::string test_dot_product(int length) {
     double t_fpga, t_sw, t_float;
     double stop, start;
-    cpp_dec_float_100 a_dec = 0.0, a_sw = 0.0, a_fpga = 0.0, a_float = 0.0;
+    int i;
     cpp_dec_float_100 da_sw = 0.0, da_hw = 0.0, da_float = 0.0;
 
     // Test data set
     std::vector<posit<NBITS,ES>> vec1, vec2;
+    // vec1.resize(length); vec2.resize(length);
     for(int i = 0; i < length; i++) {
         posit<NBITS,ES> pos1, pos2;
         pos1 = random_number(0.0, 1.0);
@@ -74,23 +81,28 @@ std::string test_dot_product(int length) {
     }
 
     // Posit HW calculation
-    posit<NBITS,ES> res_hw;
-    t_fpga = vector_dot(vec1, vec2, res_hw);
+    posit<NBITS,ES> res_hw = 0;
+    // t_fpga = vector_dot(vec1, vec2, res_hw);
 
     // Posit SW calculation
+    posit<NBITS,ES> res_sw = 0.0;
     start = omp_get_wtime();
-    posit<NBITS,ES> res_sw = 0;
-    for(int i = 0; i < length; i++) {
-        res_sw = res_sw + vec1[i] * vec2[i];
-    }
+    // for(i = 0; i < length; i++) {
+    //     res_sw += vec1[i] * vec2[i];
+    // }
+    res_sw = sw::hprblas::dot(length, vec1, 1, vec2, 1);
     stop = omp_get_wtime();
     t_sw = stop - start;
 
     // Float calculation
     float res_float = 0.0;
     start = omp_get_wtime();
-    for(int i = 0; i < length; i++) {
-        res_float = res_float + (float)vec1[i] * (float)vec2[i];
+    #pragma omp parallel private(i) num_threads(8)
+    {
+        #pragma omp for reduction(+:res_float)
+        for(i = 0; i < length; i++) {
+            res_float += (float)vec1[i] * (float)vec2[i];
+        }
     }
     stop = omp_get_wtime();
     t_float = stop - start;
@@ -98,13 +110,13 @@ std::string test_dot_product(int length) {
     // Reference calculation
     cpp_dec_float_100 res_dec = 0.0;
     for(int i = 0; i < length; i++) {
-        res_dec = res_dec + (cpp_dec_float_100)vec1[i] * (cpp_dec_float_100)vec2[i];
+        res_dec += (cpp_dec_float_100)((long double)vec1[i]) * (cpp_dec_float_100)((long double)vec2[i]);
     }
 
     // Calculate decimal accuracy
     da_float = decimal_accuracy(res_dec, (cpp_dec_float_100)res_float);
-    da_sw = decimal_accuracy(res_dec, (cpp_dec_float_100)res_sw);
-    da_hw = decimal_accuracy(res_dec, (cpp_dec_float_100)res_hw);
+    da_sw = decimal_accuracy(res_dec, (cpp_dec_float_100)((long double)res_sw));
+    da_hw = decimal_accuracy(res_dec, (cpp_dec_float_100)((long double)res_hw));
 
     return to_string_precision(t_fpga) + "," + to_string_precision(t_sw) + "," + to_string_precision(t_float) + "," + to_string_precision(da_hw) + "," + to_string_precision(da_sw) + "," + to_string_precision(da_float);
 }

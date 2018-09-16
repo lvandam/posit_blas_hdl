@@ -2,13 +2,15 @@
 #define __DEFINES_H
 
 #include <posit/posit>
+#include <boost/multiprecision/cpp_dec_float.hpp>
 
 using namespace std;
 using namespace sw::unum;
+using boost::multiprecision::cpp_dec_float_100;
 
 // POSIT CONFIGURATION
 #define NBITS 32
-#define ES 3
+#define ES 2
 
 // For value debugging
 struct Entry {

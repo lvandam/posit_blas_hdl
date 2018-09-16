@@ -10,8 +10,9 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 set(EXTERNAL_INSTALL_LOCATION ${CMAKE_BINARY_DIR}/external)
 
 include(ExternalProject)
+        # GIT_REPOSITORY https://github.com/lvandam/universal
 ExternalProject_Add(universal
-        GIT_REPOSITORY https://github.com/lvandam/universal
+        GIT_REPOSITORY https://github.com/stillwater-sc/universal
         GIT_TAG master
         PREFIX ${EXTERNAL_INSTALL_LOCATION}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EXTERNAL_INSTALL_LOCATION}
@@ -39,6 +40,20 @@ if (OPENMP_FOUND)
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif()
+
+# Set hpr-blas include directory
+include_directories("./include")
+
+find_package(Boost)
+message(STATUS "Boost_FOUND " ${Boost_FOUND})
+if (Boost_FOUND)
+	message(STATUS "Including Boost_INCLUDE_DIR " ${Boost_INCLUDE_DIR})
+	include_directories(${Boost_INCLUDE_DIR})
+endif (Boost_FOUND)
+
+find_package(MTL REQUIRED)
+include_directories(${MTL_INCLUDE_DIRS})
+add_definitions(${MTL_CXX_DEFINITIONS})
 
 if(NOT EXISTS "$ENV{SNAP_ROOT}")
 message(FATAL_ERROR "Attempting to CMake with SNAP support, but SNAP_ROOT is not set. Please do something to fix that.")
